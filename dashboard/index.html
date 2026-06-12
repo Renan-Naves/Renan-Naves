@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Resultados de Campanha — Meta Ads</title>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --border: #e4e4e7;
+    --line: #f0f0f1;
+    --text: #18181b;
+    --dim: #52525b;
+    --muted: #a1a1aa;
+    --blue:   #2563eb;
+    --green:  #16a34a;
+    --amber:  #d97706;
+    --red:    #dc2626;
+    --purple: #7c3aed;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* --- structural --- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.03);
+  }
+  .section-label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  /* --- kpi cards --- */
+  .kpi { padding: 1.125rem 1.25rem; position: relative; overflow: hidden; }
+  .kpi-rule {
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent, var(--border));
+    opacity: 0.0; transition: opacity .25s ease;
+  }
+  .kpi:hover .kpi-rule { opacity: 0.55; }
+  .kpi-label {
+    font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em;
+    font-weight: 600; color: var(--dim);
+  }
+  .kpi-value { font-size: 1.85rem; font-weight: 600; line-height: 1.15; margin-top: 0.4rem; }
+  .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+  .kpi-hero { background: var(--text); border-color: var(--text); }
+  .kpi-hero .kpi-label { color: #a1a1aa; }
+  .kpi-hero .kpi-value { color: #ffffff; }
+  .kpi-hero .kpi-sub { color: #71717a; }
+
+  .accent-blue   { color: var(--blue);   }
+  .accent-green  { color: var(--green);  }
+  .accent-amber  { color: var(--amber);  }
+  .accent-purple { color: var(--purple); }
+
+  /* --- controls --- */
+  .seg { display: inline-flex; background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 2px; gap: 2px; }
+  .seg-btn {
+    padding: 0.34rem 0.7rem; font-size: 0.8125rem; font-weight: 500;
+    border-radius: 7px; color: var(--dim); cursor: pointer; white-space: nowrap;
+    transition: background .12s ease, color .12s ease;
+  }
+  .seg-btn:hover { color: var(--text); }
+  .seg-btn.active { background: var(--text); color: #fff; }
+  .date-input {
+    font-size: 0.8125rem; padding: 0.36rem 0.55rem; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--card); color: var(--text);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .date-input:focus { outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent); outline-offset: -1px; }
+  .btn {
+    font-size: 0.8125rem; font-weight: 600; padding: 0.42rem 0.95rem;
+    border-radius: 8px; cursor: pointer; transition: opacity .12s ease, transform .04s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--blue); color: #fff; border: 1px solid var(--blue); }
+  .btn-primary:hover { opacity: 0.92; }
+  .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #fafafa; }
+
+  /* --- table --- */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;
+    font-weight: 600; color: var(--muted); text-align: right;
+    padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border);
+  }
+  thead th:first-child { text-align: left; }
+  tbody td { padding: 0.7rem 0.85rem; font-size: 0.875rem; text-align: right; border-bottom: 1px solid var(--line); }
+  tbody td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background .1s ease; }
+  tbody tr:hover { background: #fafafa; }
+  .tag {
+    display: inline-block; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 0.1rem 0.4rem; border-radius: 5px; vertical-align: 1px;
+  }
+  .tag-amber { background: #fef3e2; color: var(--amber); }
+  .tag-muted { background: #f1f1f2; color: var(--muted); }
+
+  /* --- misc --- */
+  .notice {
+    display: flex; gap: 0.6rem; align-items: flex-start;
+    background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+    border-radius: 12px; padding: 0.8rem 1rem; font-size: 0.8125rem;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  #loadbar {
+    position: fixed; top: 0; left: 0; height: 2px; width: 0;
+    background: var(--blue); transition: width .3s ease, opacity .3s ease; z-index: 60;
+  }
+  .fade-in { animation: fadeIn 0.4s ease-out both; }
+  .stagger > * { animation: fadeIn 0.4s ease-out both; }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.10s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.26s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.30s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+  .is-loading .kpi-value, .is-loading .stat-v { color: var(--muted) !important; }
+</style>
+</head>
+<body>
+
+<div id="loadbar"></div>
+
+<!-- ============================ AUTH GATE ============================ -->
+<div id="gate" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:rgba(247,247,248,0.96)">
+  <div class="card w-full max-w-sm p-7 fade-in">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--text)">
+        <svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="9" width="3.4" height="7" rx="1" fill="#fff"/><rect x="6.8" y="5" width="3.4" height="11" rx="1" fill="#fff"/><rect x="12.6" y="1" width="3.4" height="15" rx="1" fill="#fff"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold leading-tight">Resultados de Campanha</div>
+        <div class="text-xs" style="color:var(--muted)">Acesso restrito</div>
+      </div>
+    </div>
+    <label class="section-label">Chave de acesso</label>
+    <input id="gate-key" type="password" autocomplete="off" placeholder="DASH_KEY"
+           class="date-input w-full mt-2" style="font-family:ui-sans-serif,system-ui,sans-serif">
+    <div id="gate-error" class="hidden text-xs mt-2" style="color:var(--red)"></div>
+    <button id="gate-submit" class="btn btn-primary w-full mt-4">Entrar</button>
+  </div>
+</div>
+
+<!-- ============================== APP =============================== -->
+<div id="app" class="hidden min-h-screen">
+
+  <!-- header -->
+  <header class="border-b" style="border-color:var(--border);background:var(--card)">
+    <div class="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--text)">
+          <svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="9" width="3.4" height="7" rx="1" fill="#fff"/><rect x="6.8" y="5" width="3.4" height="11" rx="1" fill="#fff"/><rect x="12.6" y="1" width="3.4" height="15" rx="1" fill="#fff"/></svg>
+        </div>
+        <div>
+          <div class="font-semibold leading-tight">Resultados de Campanha</div>
+          <div class="text-xs" style="color:var(--muted)">Meta Ads · investimento, CPL e CPA</div>
+        </div>
+      </div>
+      <a href="/dash/" class="text-xs hover:underline" style="color:var(--dim)">Painel de tracking →</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-5 py-6 space-y-7">
+
+    <!-- date range picker -->
+    <section class="fade-in flex flex-wrap items-end gap-x-4 gap-y-3">
+      <div class="seg" id="presets">
+        <div class="seg-btn" data-preset="0">Hoje</div>
+        <div class="seg-btn active" data-preset="7">7 dias</div>
+        <div class="seg-btn" data-preset="14">14 dias</div>
+        <div class="seg-btn" data-preset="30">30 dias</div>
+      </div>
+      <div class="flex items-end gap-2">
+        <div>
+          <label class="section-label block mb-1">De</label>
+          <input id="date-from" type="date" class="date-input">
+        </div>
+        <div>
+          <label class="section-label block mb-1">Até</label>
+          <input id="date-to" type="date" class="date-input">
+        </div>
+        <button id="apply" class="btn btn-ghost">Aplicar</button>
+      </div>
+      <div class="ml-auto text-xs self-center" style="color:var(--muted)" id="range-label">&nbsp;</div>
+    </section>
+
+    <!-- info notice (sync not configured / errors) -->
+    <div id="notice" class="notice hidden fade-in">
+      <span class="dot mt-1" style="background:#d97706"></span>
+      <span id="notice-text"></span>
+    </div>
+
+    <!-- KPI overview -->
+    <section>
+      <div class="section-label mb-2.5">Visão geral da campanha</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 stagger">
+        <div class="card kpi" style="--accent:var(--amber)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">Investimento</div>
+          <div class="kpi-value mono" id="kpi-spend">—</div>
+          <div class="kpi-sub">Gasto total no Meta Ads</div>
+        </div>
+        <div class="card kpi" style="--accent:var(--blue)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">Leads</div>
+          <div class="kpi-value mono accent-blue" id="kpi-leads">—</div>
+          <div class="kpi-sub">utm_source = meta-ads</div>
+        </div>
+        <div class="card kpi kpi-hero">
+          <div class="kpi-label">CPL</div>
+          <div class="kpi-value mono" id="kpi-cpl">—</div>
+          <div class="kpi-sub">Investimento ÷ leads</div>
+        </div>
+        <div class="card kpi" style="--accent:var(--blue)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">Vendas</div>
+          <div class="kpi-value mono accent-blue" id="kpi-sales">—</div>
+          <div class="kpi-sub">utm_source = meta-ads</div>
+        </div>
+        <div class="card kpi kpi-hero">
+          <div class="kpi-label">CPA</div>
+          <div class="kpi-value mono" id="kpi-cpa">—</div>
+          <div class="kpi-sub">Investimento ÷ vendas</div>
+        </div>
+        <div class="card kpi" style="--accent:var(--green)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">Receita</div>
+          <div class="kpi-value mono accent-green" id="kpi-revenue">—</div>
+          <div class="kpi-sub">Vendas atribuídas ao Meta</div>
+        </div>
+        <div class="card kpi" style="--accent:var(--purple)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">ROAS</div>
+          <div class="kpi-value mono accent-purple" id="kpi-roas">—</div>
+          <div class="kpi-sub">Receita ÷ investimento</div>
+        </div>
+        <div class="card kpi" style="--accent:var(--muted)">
+          <div class="kpi-rule"></div>
+          <div class="kpi-label">Respostas de quiz</div>
+          <div class="kpi-value mono" id="kpi-quiz">—</div>
+          <div class="kpi-sub">/captura + /lp-do-sobral</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- daily trend -->
+    <section class="card p-5 fade-in">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <div class="section-label">Tendência diária</div>
+          <div class="font-semibold mt-0.5">Investimento e leads por dia</div>
+        </div>
+        <div class="flex gap-5">
+          <div class="text-right">
+            <div class="kpi-label">Impressões</div>
+            <div class="mono text-sm font-semibold stat-v" id="stat-impressions">—</div>
+          </div>
+          <div class="text-right">
+            <div class="kpi-label">Cliques</div>
+            <div class="mono text-sm font-semibold stat-v" id="stat-clicks">—</div>
+          </div>
+          <div class="text-right">
+            <div class="kpi-label">CTR</div>
+            <div class="mono text-sm font-semibold stat-v" id="stat-ctr">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="h-64"><canvas id="chart-daily"></canvas></div>
+    </section>
+
+    <!-- CPL by creative -->
+    <section class="card p-5 fade-in">
+      <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <div>
+          <div class="section-label">CPL por criativo</div>
+          <div class="font-semibold mt-0.5">Custo por lead de cada anúncio</div>
+        </div>
+        <div class="text-xs self-center" style="color:var(--muted)">
+          Custo (nome do anúncio) cruzado com leads (utm_content)
+        </div>
+      </div>
+      <div class="overflow-x-auto -mx-1">
+        <table>
+          <thead>
+            <tr>
+              <th>Criativo</th>
+              <th>Investimento</th>
+              <th>Impressões</th>
+              <th>CTR</th>
+              <th>Leads</th>
+              <th>CPL</th>
+            </tr>
+          </thead>
+          <tbody id="creative-rows">
+            <tr><td colspan="6" class="text-center" style="color:var(--muted)">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- sync footer -->
+    <footer class="flex items-center gap-2 text-xs pb-4" style="color:var(--muted)">
+      <span class="dot" id="sync-dot" style="background:var(--muted)"></span>
+      <span id="sync-status">Verificando sincronização…</span>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var API = '/api/campaign-report';
+  var KEY = '';
+  var chart = null;
+  var state = { from: '', to: '', preset: '7' };
+
+  // -------------------------------------------------------------- helpers
+  function $(id) { return document.getElementById(id); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayYmd() { return ymd(new Date()); }
+  function shiftYmd(s, days) {
+    var d = new Date(s + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return ymd(d);
+  }
+  function presetRange(p) {
+    var to = todayYmd();
+    if (p === '0') return { from: to, to: to };
+    return { from: shiftYmd(to, -(parseInt(p, 10) - 1)), to: to };
+  }
+  function daysBetween(a, b) {
+    return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000) + 1;
+  }
+
+  var brl = function (n) { return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
+  var int = function (n) { return Math.round(Number(n)).toLocaleString('pt-BR'); };
+  function num(n, d) { return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function pct(n) { return num(n * 100, 2) + '%'; }
+  function orDash(v, fmt) { return (v === null || v === undefined) ? '—' : fmt(v); }
+  function compact(n) {
+    if (n >= 1000000) return num(n / 1000000, 1) + 'M';
+    if (n >= 1000) return num(n / 1000, n % 1000 === 0 ? 0 : 1) + 'k';
+    return int(n);
+  }
+  function shortDate(s) { var p = s.split('-'); return p[2] + '/' + p[1]; }
+
+  function relTime(unixSec) {
+    var diff = Math.floor(Date.now() / 1000) - unixSec;
+    if (diff < 90) return 'agora há pouco';
+    if (diff < 3600) return 'há ' + Math.round(diff / 60) + ' min';
+    if (diff < 86400) return 'há ' + Math.round(diff / 3600) + ' h';
+    return 'há ' + Math.round(diff / 86400) + ' dia(s)';
+  }
+
+  // -------------------------------------------------------------- loadbar
+  var barTimer = null;
+  function barStart() {
+    var b = $('loadbar');
+    b.style.opacity = '1'; b.style.width = '0';
+    requestAnimationFrame(function () { b.style.width = '75%'; });
+  }
+  function barDone() {
+    var b = $('loadbar');
+    b.style.width = '100%';
+    clearTimeout(barTimer);
+    barTimer = setTimeout(function () { b.style.opacity = '0'; b.style.width = '0'; }, 300);
+  }
+
+  // ----------------------------------------------------------------- auth
+  function initialKey() {
+    var u = new URL(location.href);
+    var k = u.searchParams.get('key');
+    if (k) {
+      try { sessionStorage.setItem('dashKey', k); } catch (e) {}
+      u.searchParams.delete('key');
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+      return k;
+    }
+    try { return sessionStorage.getItem('dashKey') || ''; } catch (e) { return ''; }
+  }
+
+  function openGate(msg) {
+    $('app').classList.add('hidden');
+    $('gate').classList.remove('hidden');
+    var err = $('gate-error');
+    if (msg) { err.textContent = msg; err.classList.remove('hidden'); }
+    else { err.classList.add('hidden'); }
+    $('gate-key').focus();
+  }
+
+  function submitGate() {
+    var k = $('gate-key').value.trim();
+    if (!k) { return; }
+    KEY = k;
+    try { sessionStorage.setItem('dashKey', k); } catch (e) {}
+    $('gate').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    loadData();
+  }
+
+  // ------------------------------------------------------------- fetching
+  function loadData() {
+    barStart();
+    $('app').classList.add('is-loading');
+    var url = API + '?key=' + encodeURIComponent(KEY)
+            + '&from=' + encodeURIComponent(state.from)
+            + '&to=' + encodeURIComponent(state.to);
+
+    fetch(url)
+      .then(function (res) {
+        if (res.status === 401) { barDone(); openGate('Chave inválida.'); throw 'auth'; }
+        if (!res.ok) { throw new Error('Erro ' + res.status); }
+        return res.json();
+      })
+      .then(function (data) {
+        barDone();
+        $('app').classList.remove('is-loading');
+        if (data.error) { showNotice(data.error); return; }
+        render(data);
+      })
+      .catch(function (err) {
+        if (err === 'auth') { return; }
+        barDone();
+        $('app').classList.remove('is-loading');
+        showNotice('Não foi possível carregar os dados: ' + (err.message || err) + '.');
+      });
+  }
+
+  function showNotice(text) {
+    $('notice-text').textContent = text;
+    $('notice').classList.remove('hidden');
+  }
+  function hideNotice() { $('notice').classList.add('hidden'); }
+
+  // ------------------------------------------------------------- renderer
+  function render(d) {
+    hideNotice();
+
+    $('range-label').textContent =
+      shortDate(d.from) + ' – ' + shortDate(d.to) + ' · ' + daysBetween(d.from, d.to) + ' dia(s)';
+
+    // KPI cards
+    $('kpi-spend').textContent   = brl(d.spend);
+    $('kpi-leads').textContent   = int(d.leads);
+    $('kpi-cpl').textContent     = orDash(d.cpl, brl);
+    $('kpi-sales').textContent   = int(d.sales);
+    $('kpi-cpa').textContent     = orDash(d.cpa, brl);
+    $('kpi-revenue').textContent = brl(d.revenue);
+    $('kpi-roas').textContent    = orDash(d.roas, function (v) { return num(v, 2) + '×'; });
+    $('kpi-quiz').textContent    = int(d.quiz_responses);
+
+    // secondary stats
+    $('stat-impressions').textContent = int(d.impressions);
+    $('stat-clicks').textContent      = int(d.clicks);
+    $('stat-ctr').textContent         = d.impressions > 0 ? pct(d.clicks / d.impressions) : '—';
+
+    renderChart(d.daily || []);
+    renderCreatives(d.creatives || []);
+    renderSync(d);
+  }
+
+  function renderChart(daily) {
+    var ctx = $('chart-daily').getContext('2d');
+    var labels = daily.map(function (r) { return shortDate(r.date); });
+    var spend = daily.map(function (r) { return r.spend; });
+    var leads = daily.map(function (r) { return r.leads; });
+
+    if (chart) { chart.destroy(); }
+    chart = new Chart(ctx, {
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            type: 'bar', label: 'Investimento', data: spend, yAxisID: 'y',
+            backgroundColor: 'rgba(217,119,6,0.18)', borderColor: '#d97706',
+            borderWidth: 1, borderRadius: 4, maxBarThickness: 30, order: 2
+          },
+          {
+            type: 'line', label: 'Leads', data: leads, yAxisID: 'y1',
+            borderColor: '#16a34a', backgroundColor: '#16a34a',
+            borderWidth: 2, tension: 0.35, pointRadius: 2.5, pointHoverRadius: 4.5, order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 0, autoSkipPadding: 14 } },
+          y: {
+            position: 'left', beginAtZero: true, grid: { color: '#f0f0f1' },
+            ticks: { font: { size: 11 }, callback: function (v) { return 'R$ ' + compact(v); } }
+          },
+          y1: {
+            position: 'right', beginAtZero: true, grid: { drawOnChartArea: false },
+            ticks: { font: { size: 11 }, precision: 0 }
+          }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, padding: 16, font: { size: 12 } } },
+          tooltip: {
+            callbacks: {
+              label: function (c) {
+                return c.dataset.label + ': ' + (c.dataset.yAxisID === 'y' ? brl(c.parsed.y) : int(c.parsed.y));
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function renderCreatives(rows) {
+    var tb = $('creative-rows');
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="text-center" style="color:var(--muted)">Nenhum dado de criativo no período.</td></tr>';
+      return;
+    }
+    var html = rows.map(function (c) {
+      var ctr = c.impressions > 0 ? pct(c.clicks / c.impressions) : '—';
+      var placeholder = /^\(sem /.test(c.name);
+      var nameCell = '<span' + (placeholder ? ' style="color:var(--muted)"' : '') + '>' + esc(c.name) + '</span>';
+      var badge = '';
+      if (c.spend > 0 && c.leads === 0) { badge = ' <span class="tag tag-amber">sem leads</span>'; }
+      else if (c.spend === 0 && c.leads > 0) { badge = ' <span class="tag tag-muted">sem custo</span>'; }
+      return '<tr>'
+        + '<td>' + nameCell + badge + '</td>'
+        + '<td class="mono">' + brl(c.spend) + '</td>'
+        + '<td class="mono">' + int(c.impressions) + '</td>'
+        + '<td class="mono">' + ctr + '</td>'
+        + '<td class="mono">' + int(c.leads) + '</td>'
+        + '<td class="mono font-semibold">' + orDash(c.cpl, brl) + '</td>'
+        + '</tr>';
+    }).join('');
+    tb.innerHTML = html;
+  }
+
+  function renderSync(d) {
+    var dot = $('sync-dot');
+    var label = $('sync-status');
+    if (!d.last_synced_at) {
+      dot.style.background = 'var(--muted)';
+      label.textContent = 'Sincronização de custos ainda não rodou — configure o cron (cron-worker/, docs/ad-spend-sync.md).';
+      if (d.spend === 0) {
+        showNotice('Os custos do Meta Ads ainda não foram sincronizados. Os cards de investimento, CPL, CPA e ROAS ficam zerados até o cron rodar — veja docs/ad-spend-sync.md.');
+      }
+      return;
+    }
+    var stale = (Math.floor(Date.now() / 1000) - d.last_synced_at) > 7200;
+    dot.style.background = stale ? 'var(--amber)' : 'var(--green)';
+    label.textContent = 'Custos do Meta Ads sincronizados ' + relTime(d.last_synced_at)
+      + (stale ? ' — dado pode estar desatualizado.' : '.');
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  // ----------------------------------------------------------- date picker
+  function applyState() {
+    $('date-from').value = state.from;
+    $('date-to').value = state.to;
+    var btns = document.querySelectorAll('#presets .seg-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', state.preset === btns[i].getAttribute('data-preset'));
+    }
+  }
+
+  function bindControls() {
+    document.querySelectorAll('#presets .seg-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.preset = btn.getAttribute('data-preset');
+        var r = presetRange(state.preset);
+        state.from = r.from; state.to = r.to;
+        applyState();
+        loadData();
+      });
+    });
+
+    $('apply').addEventListener('click', function () {
+      var f = $('date-from').value, t = $('date-to').value;
+      if (!f || !t) { return; }
+      if (f > t) { var tmp = f; f = t; t = tmp; }
+      state.from = f; state.to = t; state.preset = null;
+      applyState();
+      loadData();
+    });
+
+    $('gate-submit').addEventListener('click', submitGate);
+    $('gate-key').addEventListener('keydown', function (e) { if (e.key === 'Enter') { submitGate(); } });
+
+    var maxDay = todayYmd();
+    $('date-from').max = maxDay;
+    $('date-to').max = maxDay;
+  }
+
+  // ------------------------------------------------------------------ init
+  function init() {
+    bindControls();
+    var r = presetRange('7');
+    state.from = r.from; state.to = r.to; state.preset = '7';
+    applyState();
+
+    KEY = initialKey();
+    if (!KEY) { openGate(); return; }
+    $('app').classList.remove('hidden');
+    loadData();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

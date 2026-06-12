@@ -1,0 +1,26 @@
+# Cloudflare Worker — hourly Meta Ads spend sync for the /dashboard page.
+#
+# This is a SEPARATE Worker, deployed on its own with `wrangler deploy`
+# (Cloudflare Pages has no cron trigger; only Workers do). The Pages project
+# itself keeps deploying via `git push` — it never reads this file.
+#
+# Unlike the repo-root wrangler.toml (gitignored, template-only), THIS file is
+# committed: it carries no secrets. SYNC_SECRET is set separately as a secret.
+#
+# Deploy steps: see cron-worker/README.md
+
+name = "krob-meta-ads-cron"
+main = "index.js"
+compatibility_date = "2025-03-01"
+
+# Hourly, at minute 0. Adjust if you want a different cadence.
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+# Full URL of the Pages sync endpoint (the encontro-krobcode-3 Pages project).
+SYNC_URL = "https://encontro-krobcode-3.pages.dev/api/sync/meta-ads"
+
+# SYNC_SECRET is intentionally NOT here — it is a Worker secret:
+#   npx wrangler@latest secret put SYNC_SECRET
+# It MUST equal the SYNC_SECRET environment variable on the Pages project.

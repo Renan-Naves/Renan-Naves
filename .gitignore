@@ -1,0 +1,27 @@
+.DS_Store
+node_modules/
+.wrangler/
+dist/
+*.log
+
+# Material de origem / trabalho local — NÃO publicar no Cloudflare Pages.
+# (a página final vive na raiz: index.html, /blog, /shared, /images)
+.imgwork/
+/Site Renan/
+/Renan Naves/
+/LP Renan Desktop.png
+/LP Renan Mobile.png
+/blog_posts.json
+.env
+.env.local
+
+# Tracking stack: local-only Cloudflare config & secrets (never commit).
+# Only wrangler.toml.example is tracked. Production D1 binding + env vars
+# are configured in the Cloudflare Pages dashboard, not in these files.
+wrangler.toml
+.dev.vars
+.dev.vars.*
+
+# Exception: the cron Worker's wrangler.toml IS tracked — it carries no
+# secrets (SYNC_SECRET is set via `wrangler secret put`). See cron-worker/.
+!cron-worker/wrangler.toml

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{PAGE_TITLE}}</title>
+  <meta name="description" content="{{PAGE_DESCRIPTION}}">
+
+  <meta property="og:title" content="{{PAGE_TITLE}}">
+  <meta property="og:description" content="{{PAGE_DESCRIPTION}}">
+  <meta property="og:image" content="/{{SLUG}}/assets/og.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- Preload the LCP image. Remove if this page has no hero image. -->
+  <link rel="preload" as="image" href="/{{SLUG}}/assets/hero.webp">
+
+  <!-- Preconnect to tracking origins when they're added, e.g.:
+  <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
+  <link rel="preconnect" href="https://connect.facebook.net" crossorigin>
+  -->
+
+  <style>
+    /* Critical CSS. Above-the-fold only. Keep under ~4 KB. */
+    *,*::before,*::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+      color: #111;
+    }
+    .hero {
+      min-height: 70vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      margin: 0 0 1rem;
+      line-height: 1.15;
+    }
+    .hero p {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      max-width: 36rem;
+      margin: 0 auto 2rem;
+      color: #444;
+    }
+    .cta {
+      display: inline-block;
+      padding: .9rem 1.6rem;
+      background: #111;
+      color: #fff;
+      text-decoration: none;
+      border-radius: .5rem;
+      font-weight: 600;
+    }
+    .cta:hover { background: #333; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div>
+        <h1>{{HEADLINE}}</h1>
+        <p>{{SUBHEAD}}</p>
+        <a href="{{CTA_URL}}" class="cta">{{CTA_TEXT}}</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- Non-critical scripts go here. Always defer or async. -->
+  <!-- <script async src="/shared/scripts/tracker.js"></script> -->
+</body>
+</html>
