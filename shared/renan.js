@@ -56,3 +56,88 @@
     }
   }
 })();
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tracking — Meta Pixel + CAPI (via /tracker) + GA4.
+   Conversão = clique no WhatsApp (esta LP não tem formulário). Vive aqui
+   porque raiz + blog carregam este script: fonte única, sem duplicação
+   (regra do repo: trackers ficam em shared/).
+   ───────────────────────────────────────────────────────────────────────── */
+(function () {
+  "use strict";
+
+  var META_PIXEL_ID = "1698518024494612";
+  var GA4_ID = "G-GT1DY1F536";
+
+  function uuid() {
+    return (window.crypto && crypto.randomUUID && crypto.randomUUID()) ||
+      (Date.now() + "-" + Math.random().toString(36).slice(2));
+  }
+
+  // Dispara o evento server-side em /tracker (Meta CAPI + GA4 MP). É deduplicado
+  // contra o pixel do browser pelo event_id. user_data vazio: o /tracker enriquece
+  // com fbp/fbc/IP/UA dos cookies first-party do middleware.
+  function track(eventName, eventId, userData) {
+    try {
+      fetch("/tracker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          event_name: eventName,
+          event_id: eventId,
+          event_time: Math.floor(Date.now() / 1000),
+          event_source_url: window.location.href,
+          user_data: userData || {},
+        }),
+      }).catch(function () {});
+    } catch (_) {}
+  }
+
+  // ── Meta Pixel (base code) ───────────────────────────────────────────────
+  !function (f, b, e, v, n, t, s) {
+    if (f.fbq) return; n = f.fbq = function () {
+      n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+    }; if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0";
+    n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
+    s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+  }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+  fbq("init", META_PIXEL_ID);
+
+  // ── GA4 (script first-party via proxy /scripts/gtag.js → googletagmanager) ─
+  var ga = document.createElement("script");
+  ga.async = true;
+  ga.src = "/scripts/gtag.js?id=" + GA4_ID;
+  document.head.appendChild(ga);
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag("js", new Date());
+  gtag("config", GA4_ID);
+
+  // ── PageView (pixel + CAPI, deduped por event_id) ──────────────────────────
+  // /tracker NÃO loga PageView no D1 — só relaya pro Meta CAPI.
+  var pvId = uuid();
+  try { fbq("track", "PageView", {}, { eventID: pvId }); } catch (_) {}
+  track("PageView", pvId, {});
+
+  // ── Lead = primeiro clique em WhatsApp por sessão ──────────────────────────
+  // Guard em sessionStorage evita inflar a contagem de Lead / o CPL quando o
+  // visitante clica em mais de um botão de WhatsApp.
+  function isWhatsApp(a) {
+    var href = (a.getAttribute("href") || "").toLowerCase();
+    return href.indexOf("api.whatsapp.com") !== -1 || href.indexOf("wa.me") !== -1;
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a || !isWhatsApp(a)) return;
+    try {
+      if (sessionStorage.getItem("_lead_fired")) return;
+      sessionStorage.setItem("_lead_fired", "1");
+    } catch (_) {}
+    var leadId = uuid();
+    try { fbq("track", "Lead", {}, { eventID: leadId }); } catch (_) {}
+    try { if (window.gtag) gtag("event", "generate_lead"); } catch (_) {}
+    track("Lead", leadId, {});
+  }, true);
+})();

@@ -1,3 +1,5 @@
+import { sendToGoogleAds } from './google-ads.js';
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -200,6 +202,21 @@ export async function onRequestPost(context) {
         }
       })()
     );
+
+    // --- Google Ads offline click-conversion (Lead only, background) ---
+    // Best-effort: stays silent unless the GOOGLE_ADS_* env vars are set AND
+    // the session carries a gclid. Skipped for bots, like the Meta/GA4 fan-out.
+    if (!isBot) {
+      context.waitUntil(
+        sendToGoogleAds({ body, sessionData, env })
+          .then((r) => {
+            if (r && !r.skipped && r.response && !r.response.ok) {
+              console.error('Google Ads upload not ok:', r.response.status, r.body);
+            }
+          })
+          .catch((e) => console.error('Google Ads error:', e.message))
+      );
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
