@@ -81,14 +81,19 @@ logged to D1) on load; `Lead` (pixel + CAPI + GA4 `generate_lead`) on the first 
 session. No PII is collected (there's no form), so the Lead matches on cookies/IP/UA only. In Meta Ads,
 build your conversion on the standard `Lead` event; in GA4, on `generate_lead`.
 
-**Google Ads (leads).** `functions/google-ads.js` uploads an offline **ClickConversion** keyed by the
-`gclid` the middleware captured into `sessions`, fired from `tracker.js` on `Lead` only. It stays silent
-unless **all** of `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`, `GOOGLE_ADS_REFRESH_TOKEN`,
-`GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CUSTOMER_ID`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`, and
-`GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID` are set, and the visitor's session carries a `gclid` (i.e. they
-came from a Google ad). Because the lead is a WhatsApp click with no email/phone, enhanced-conversions-
-for-leads (hashed PII) does not apply — attribution is by `gclid`. `conversionDateTime` is formatted in
-`TIMEZONE_OFFSET` (default `-03:00`), which must match the Google Ads account timezone.
+**Google Ads (leads).** `functions/google-ads.js` ingests an offline click-conversion event keyed by the
+`gclid` the middleware captured into `sessions`, fired from `tracker.js` on `Lead` only. It uses the
+**Data Manager API** (`POST datamanager.googleapis.com/v1/events:ingest`), **not** the legacy Google Ads
+API `UploadClickConversions` — Google blocks that method for new adopters from 2026-06-15
+(`CUSTOMER_NOT_ALLOWLISTED_FOR_THIS_FEATURE`). Data Manager needs **no developer token and no
+login-customer-id header**: the advertiser (`operatingAccount`) and MCC (`loginAccount`) travel in the
+request body's `destinations`, and the OAuth scope is `https://www.googleapis.com/auth/datamanager`. It
+stays silent unless **all** of `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
+`GOOGLE_ADS_REFRESH_TOKEN`, `GOOGLE_ADS_CUSTOMER_ID` (advertiser), `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (MCC),
+and `GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID` (a **WEBPAGE** conversion action) are set, and the visitor's
+session carries a `gclid`. Because the lead is a WhatsApp click with no email/phone,
+enhanced-conversions-for-leads (hashed PII) does not apply — attribution is by `gclid`. `eventTimestamp`
+is RFC 3339 in `TIMEZONE_OFFSET` (default `-03:00`), which should match the Google Ads account timezone.
 
 **GA4 is ON.** Both client-side (gtag via the first-party `/scripts/gtag.js` proxy, initialised in
 `shared/renan.js`) and server-side (Measurement Protocol from `tracker.js`, conversions only — it skips
@@ -111,12 +116,13 @@ the server-side fire; `tracker.js` skips GA4 cleanly if they're unset.
 `/dash` and `/api/*`). **GA4 (on):** `GA4_MEASUREMENT_ID` (`G-GT1DY1F536`) + `GA4_API_SECRET` (encrypt).
 Optional: `META_TEST_EVENT_CODE` (routes events to Events Manager → Test Events),
 `DEFAULT_COUNTRY_CODE` (default `55`).
-**Google Ads (leads) — all seven required together, else the upload silently skips:**
-`GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET` (encrypt), `GOOGLE_ADS_REFRESH_TOKEN` (encrypt),
-`GOOGLE_ADS_DEVELOPER_TOKEN` (encrypt), `GOOGLE_ADS_CUSTOMER_ID` (digits only), `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
-(MCC id, or same as customer id if no MCC), `GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID` (numeric id of the
-"Lead" conversion action created in Google Ads). Optional `TIMEZONE_OFFSET` (default `-03:00`) must match
-the Google Ads account timezone.
+**Google Ads (leads) — all six required together (Data Manager API; NO developer token), else the upload
+silently skips:** `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET` (encrypt), `GOOGLE_ADS_REFRESH_TOKEN`
+(encrypt — generated with the `https://www.googleapis.com/auth/datamanager` scope), `GOOGLE_ADS_CUSTOMER_ID`
+(advertiser / operating account, digits only), `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (MCC id, digits only, or same
+as customer id if no MCC), `GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID` (numeric id of a **WEBPAGE** conversion
+action in the advertiser account). Optional `TIMEZONE_OFFSET` (default `-03:00`) should match the Google
+Ads account timezone.
 **Meta-spend sync** (powers the `/dashboard` campaign view + `cron-worker/`, inactive until set):
 `SYNC_SECRET` (encrypt — also set as a secret on the cron Worker, see `cron-worker/README.md`),
 `META_ADS_ACCESS_TOKEN` (encrypt), `META_ADS_ACCOUNT_ID`.

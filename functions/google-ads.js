@@ -1,29 +1,38 @@
 // -------------------------------------------------------------------------
-// Google Ads — offline click-conversion upload (leads).
+// Google Ads — offline lead conversion via the Data Manager API.
 //
 // This LP has no form: a "lead" is a WhatsApp-CTA click, so we can't collect
 // an email/phone before the redirect and enhanced-conversions-for-leads
 // (hashed PII) doesn't apply. Instead we attribute by the Google click id
-// (gclid) that the edge middleware captured into `sessions`, and upload a
-// ClickConversion to the configured conversion action.
+// (gclid) that the edge middleware captured into `sessions`, and ingest a
+// click-conversion event for the configured conversion action.
+//
+// NOTE ON THE API: Google is sunsetting the legacy Google Ads API
+// `ConversionUploadService.UploadClickConversions` for new adopters — from
+// 2026-06-15 a developer token with no prior offline-conversion history is
+// rejected (CUSTOMER_NOT_ALLOWLISTED_FOR_THIS_FEATURE). The replacement is the
+// **Data Manager API** (`datamanager.googleapis.com/v1/events:ingest`), which
+// needs NO developer token and NO login-customer-id header — the Google Ads
+// operating account (the advertiser) and login account (the MCC) travel in the
+// request body's `destinations`. OAuth scope is `.../auth/datamanager`.
 //
 // Like every other integration in this stack, it stays SILENT until fully
 // configured — it fires only when ALL of these env vars are set:
 //   GOOGLE_ADS_CLIENT_ID, GOOGLE_ADS_CLIENT_SECRET, GOOGLE_ADS_REFRESH_TOKEN,
-//   GOOGLE_ADS_DEVELOPER_TOKEN, GOOGLE_ADS_CUSTOMER_ID,
-//   GOOGLE_ADS_LOGIN_CUSTOMER_ID, GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID
-// ...and the visitor's session carries a gclid (i.e. they came from Google Ads).
-// No gclid → nothing to attribute → skip. Organic / Meta / direct leads are
-// simply not uploaded to Google Ads, which is correct.
+//   GOOGLE_ADS_CUSTOMER_ID (advertiser / operating account, digits only),
+//   GOOGLE_ADS_LOGIN_CUSTOMER_ID (MCC, digits only),
+//   GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID (a WEBPAGE conversion action id)
+// ...and the visitor's session carries a gclid (i.e. they came from a Google
+// ad). No gclid → nothing to attribute → skip. Organic / Meta / direct leads
+// are simply not sent to Google Ads, which is correct.
 // -------------------------------------------------------------------------
 
-const GOOGLE_ADS_API_VERSION = 'v18';
+const DATA_MANAGER_ENDPOINT = 'https://datamanager.googleapis.com/v1/events:ingest';
 
 const REQUIRED_ENV = [
   'GOOGLE_ADS_CLIENT_ID',
   'GOOGLE_ADS_CLIENT_SECRET',
   'GOOGLE_ADS_REFRESH_TOKEN',
-  'GOOGLE_ADS_DEVELOPER_TOKEN',
   'GOOGLE_ADS_CUSTOMER_ID',
   'GOOGLE_ADS_LOGIN_CUSTOMER_ID',
   'GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID',
@@ -38,7 +47,8 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
   const gclid = sessionData && sessionData.gclid;
   if (!gclid) return { skipped: 'no gclid on session' };
 
-  // OAuth: exchange the long-lived refresh token for a short-lived access token.
+  // OAuth: exchange the long-lived refresh token (datamanager scope) for a
+  // short-lived access token.
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -56,36 +66,34 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
   const { access_token: accessToken } = await tokenRes.json();
   if (!accessToken) return { skipped: 'oauth: no access_token' };
 
-  const customerId = String(env.GOOGLE_ADS_CUSTOMER_ID).replace(/\D/g, '');
-  const loginCustomerId = String(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).replace(/\D/g, '');
-  const conversionAction =
-    `customers/${customerId}/conversionActions/${String(env.GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID).replace(/\D/g, '')}`;
+  const operatingAccountId = String(env.GOOGLE_ADS_CUSTOMER_ID).replace(/\D/g, '');
+  const loginAccountId = String(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).replace(/\D/g, '');
+  const conversionActionId = String(env.GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID).replace(/\D/g, '');
 
   const payload = {
-    conversions: [{
-      gclid,
-      conversionAction,
-      conversionDateTime: formatGoogleAdsDateTime(body.event_time, env.TIMEZONE_OFFSET),
+    destinations: [{
+      operatingAccount: { accountType: 'GOOGLE_ADS', accountId: operatingAccountId },
+      loginAccount: { accountType: 'GOOGLE_ADS', accountId: loginAccountId },
+      productDestinationId: conversionActionId,
     }],
-    // partialFailure lets Google accept the request and report per-conversion
-    // problems in the body instead of 4xx-ing the whole call.
-    partialFailure: true,
+    events: [{
+      eventTimestamp: formatRfc3339(body.event_time, env.TIMEZONE_OFFSET),
+      transactionId: body.event_id || crypto.randomUUID(),
+      eventSource: 'WEB',
+      adIdentifiers: { gclid },
+    }],
+    validateOnly: false,
   };
 
   const payloadJson = JSON.stringify(payload);
-  const response = await fetch(
-    `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'developer-token': env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        'login-customer-id': loginCustomerId,
-        'Content-Type': 'application/json',
-      },
-      body: payloadJson,
-    }
-  );
+  const response = await fetch(DATA_MANAGER_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: payloadJson,
+  });
   const respBody = await response.text().catch(() => '');
   return {
     response: { status: response.status, ok: response.ok },
@@ -94,14 +102,13 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
   };
 }
 
-// Google Ads wants "yyyy-mm-dd hh:mm:ss+hh:mm" in the conversion-action
-// account's timezone. We shift the event's epoch by the configured offset and
-// read the UTC fields of the shifted instant — that yields the wall-clock at
-// that offset — then append the same offset string. The instant stays exact;
-// only the displayed wall-clock is localized, which is what Google expects.
-// `env.TIMEZONE_OFFSET` must match the Google Ads account timezone (default
-// -03:00, São Paulo).
-function formatGoogleAdsDateTime(epochSeconds, offset) {
+// Data Manager API wants an RFC 3339 timestamp (e.g. "2026-06-14T15:07:01-03:00").
+// We shift the event's epoch by the configured offset and read the UTC fields of
+// the shifted instant — that yields the wall-clock at that offset — then append
+// the same offset string. The instant stays exact; only the displayed wall-clock
+// is localized. `env.TIMEZONE_OFFSET` should match the Google Ads account
+// timezone (default -03:00, São Paulo).
+function formatRfc3339(epochSeconds, offset) {
   const tz = (offset || '-03:00').trim();
   const m = /^([+-])(\d{2}):(\d{2})$/.exec(tz);
   const normalizedOffset = m ? tz : '-03:00';
@@ -111,7 +118,7 @@ function formatGoogleAdsDateTime(epochSeconds, offset) {
   const d = new Date(secs * 1000 + offMin * 60000);
   const pad = (n) => String(n).padStart(2, '0');
   const stamp =
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T` +
     `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
   return `${stamp}${normalizedOffset}`;
 }
