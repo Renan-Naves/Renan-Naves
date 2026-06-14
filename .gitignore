@@ -21,6 +21,7 @@ dist/
 wrangler.toml
 .dev.vars
 .dev.vars.*
+.seed-local.sql
 
 # Exception: the cron Worker's wrangler.toml IS tracked — it carries no
 # secrets (SYNC_SECRET is set via `wrangler secret put`). See cron-worker/.

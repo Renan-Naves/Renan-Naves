@@ -47,8 +47,56 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
   const gclid = sessionData && sessionData.gclid;
   if (!gclid) return { skipped: 'no gclid on session' };
 
-  // OAuth: exchange the long-lived refresh token (datamanager scope) for a
-  // short-lived access token.
+  const accessToken = await getAccessToken(env);
+  if (!accessToken.ok) return { skipped: accessToken.reason };
+
+  return ingestEvent({
+    env,
+    accessToken: accessToken.token,
+    conversionActionId: env.GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID,
+    gclid,
+    eventTime: body.event_time,
+    transactionId: body.event_id,
+  });
+}
+
+// -------------------------------------------------------------------------
+// General offline-conversion upload, keyed by gclid. Used by the manual
+// WhatsApp marking flow (functions/api/mark-conversion.js) to fire
+// QualifiedLead / Purchase for Google-originated leads, against a DIFFERENT
+// conversion action than the automatic Lead. Caller supplies the
+// conversionActionId (e.g. env.GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID or
+// env.GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID) and, for Purchase, a value.
+// Stays silent unless the OAuth + account env vars are set and a gclid is given.
+// -------------------------------------------------------------------------
+export async function sendGoogleOfflineConversion({
+  env, conversionActionId, gclid, valueCents, currency, eventTime, transactionId,
+}) {
+  const REQUIRED_OAUTH = [
+    'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN',
+    'GOOGLE_ADS_CUSTOMER_ID', 'GOOGLE_ADS_LOGIN_CUSTOMER_ID',
+  ];
+  if (REQUIRED_OAUTH.some((k) => !env[k])) return { skipped: 'missing google ads env' };
+  if (!conversionActionId) return { skipped: 'missing conversion action id' };
+  if (!gclid) return { skipped: 'no gclid' };
+
+  const accessToken = await getAccessToken(env);
+  if (!accessToken.ok) return { skipped: accessToken.reason };
+
+  return ingestEvent({
+    env,
+    accessToken: accessToken.token,
+    conversionActionId,
+    gclid,
+    valueCents,
+    currency,
+    eventTime,
+    transactionId,
+  });
+}
+
+// OAuth: exchange the refresh token (datamanager scope) for an access token.
+async function getAccessToken(env) {
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -61,27 +109,37 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
   });
   if (!tokenRes.ok) {
     const t = await tokenRes.text().catch(() => '');
-    return { skipped: `oauth failed: ${tokenRes.status} ${t}` };
+    return { ok: false, reason: `oauth failed: ${tokenRes.status} ${t}` };
   }
-  const { access_token: accessToken } = await tokenRes.json();
-  if (!accessToken) return { skipped: 'oauth: no access_token' };
+  const { access_token: token } = await tokenRes.json();
+  if (!token) return { ok: false, reason: 'oauth: no access_token' };
+  return { ok: true, token };
+}
 
+// Shared Data Manager ingest. `valueCents` is optional (Purchase only).
+async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueCents, currency, eventTime, transactionId }) {
   const operatingAccountId = String(env.GOOGLE_ADS_CUSTOMER_ID).replace(/\D/g, '');
   const loginAccountId = String(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).replace(/\D/g, '');
-  const conversionActionId = String(env.GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID).replace(/\D/g, '');
+  const actionId = String(conversionActionId).replace(/\D/g, '');
+
+  const event = {
+    eventTimestamp: formatRfc3339(eventTime, env.TIMEZONE_OFFSET),
+    transactionId: transactionId || crypto.randomUUID(),
+    eventSource: 'WEB',
+    adIdentifiers: { gclid },
+  };
+  if (typeof valueCents === 'number' && valueCents > 0) {
+    event.conversionValue = valueCents / 100;
+    event.currency = currency || 'BRL';
+  }
 
   const payload = {
     destinations: [{
       operatingAccount: { accountType: 'GOOGLE_ADS', accountId: operatingAccountId },
       loginAccount: { accountType: 'GOOGLE_ADS', accountId: loginAccountId },
-      productDestinationId: conversionActionId,
+      productDestinationId: actionId,
     }],
-    events: [{
-      eventTimestamp: formatRfc3339(body.event_time, env.TIMEZONE_OFFSET),
-      transactionId: body.event_id || crypto.randomUUID(),
-      eventSource: 'WEB',
-      adIdentifiers: { gclid },
-    }],
+    events: [event],
     validateOnly: false,
   };
 

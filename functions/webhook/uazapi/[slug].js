@@ -1,0 +1,141 @@
+// POST /webhook/uazapi/<slug>
+//
+// Inbound WhatsApp webhook for uazapi. INFRA STUB — fully wired so it can be
+// turned on later by setting UAZAPI_WEBHOOK_SECRET (and pointing uazapi at this
+// URL with the secret). Until then it answers 200 {skipped:true} so a probe
+// from uazapi doesn't look broken.
+//
+// What it does once enabled: for each inbound message it upserts a row into
+// wa_conversations (one per chat) and RESOLVES attribution with the hybrid model:
+//   1. Meta CTWA  → the message carries a `referral` object with `ctwa_clid`
+//                   (+ source_id / ad name). platform='meta', link_method='ctwa'.
+//   2. Google/LP  → the first message text carries our "(ref: XXXXXXXX)" token
+//                   (set by shared/renan.js). We look up the matching session,
+//                   pull gclid/fbc/utms. platform='google' (or by utm_source),
+//                   link_method='token'.
+//   3. Neither    → store raw; platform='unknown', link_method='unresolved'
+//                   (the attendant links it by hand in the dashboard).
+//
+// IMPORTANT: uazapi's exact payload shape must be confirmed against a real
+// sample before go-live. The normalise() function below isolates that mapping —
+// adjust the field paths there once we have a captured payload.
+
+export async function onRequestPost(context) {
+  const { request, env } = context;
+
+  if (!env.UAZAPI_WEBHOOK_SECRET) {
+    return json({ ok: true, skipped: true, reason: 'UAZAPI_WEBHOOK_SECRET not set' });
+  }
+  const sent = request.headers.get('x-uazapi-token')
+    || new URL(request.url).searchParams.get('token') || '';
+  if (sent !== env.UAZAPI_WEBHOOK_SECRET) {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
+  let payload;
+  try { payload = await request.json(); } catch (_) { return json({ error: 'Invalid JSON' }, 400); }
+
+  const msg = normalise(payload);
+  if (!msg || !msg.chatId) {
+    return json({ ok: true, skipped: true, reason: 'no inbound message in payload' });
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const resolved = await resolveAttribution(env, msg);
+
+  try {
+    await env.DB.prepare(`
+      INSERT INTO wa_conversations
+        (wa_phone, wa_contact_name, wa_chat_id, first_message, platform, link_method,
+         ctwa_clid, session_id, gclid, fbc, fbp, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+         referral_raw, status, first_message_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)
+      ON CONFLICT(wa_chat_id) DO UPDATE SET
+        wa_contact_name = COALESCE(excluded.wa_contact_name, wa_conversations.wa_contact_name),
+        -- only fill attribution if we didn't have it yet (first touch wins)
+        platform    = CASE WHEN wa_conversations.platform IN ('unknown','') OR wa_conversations.platform IS NULL THEN excluded.platform ELSE wa_conversations.platform END,
+        link_method = CASE WHEN wa_conversations.link_method IN ('unresolved','') OR wa_conversations.link_method IS NULL THEN excluded.link_method ELSE wa_conversations.link_method END,
+        ctwa_clid   = COALESCE(wa_conversations.ctwa_clid, excluded.ctwa_clid),
+        session_id  = COALESCE(wa_conversations.session_id, excluded.session_id),
+        gclid       = COALESCE(wa_conversations.gclid, excluded.gclid),
+        updated_at  = excluded.updated_at
+    `).bind(
+      resolved.phone, resolved.name, msg.chatId, msg.text, resolved.platform, resolved.linkMethod,
+      resolved.ctwaClid, resolved.sessionId, resolved.gclid, resolved.fbc, resolved.fbp,
+      resolved.utmSource, resolved.utmMedium, resolved.utmCampaign, resolved.utmContent, resolved.utmTerm,
+      msg.referralRaw, now, now, now,
+    ).run();
+  } catch (e) {
+    return json({ error: 'DB write failed: ' + e.message }, 500);
+  }
+
+  return json({ ok: true, chat_id: msg.chatId, platform: resolved.platform, link_method: resolved.linkMethod });
+}
+
+// Map uazapi's payload to our internal shape. CONFIRM field paths with a real
+// sample — kept permissive (tries several common shapes) so a wiring mistake
+// degrades to 'unresolved' instead of dropping the message.
+function normalise(p) {
+  const m = p.message || p.data || p.messages?.[0] || p;
+  if (!m) return null;
+  const chatId = m.chatId || m.chat_id || m.from || m.key?.remoteJid || p.chatId || '';
+  const text = m.text || m.body || m.message?.conversation
+    || m.message?.extendedTextMessage?.text || '';
+  const phone = String(m.sender || m.from || m.author || chatId || '').replace(/[^0-9]/g, '');
+  const name = m.senderName || m.pushName || m.notifyName || m.contact?.name || '';
+  const referral = m.referral || m.message?.referral || m.contextInfo?.externalAdReply || null;
+  return {
+    chatId,
+    text: String(text || ''),
+    phone,
+    name,
+    referral,
+    referralRaw: referral ? JSON.stringify(referral) : null,
+  };
+}
+
+async function resolveAttribution(env, msg) {
+  const base = {
+    phone: msg.phone, name: msg.name, platform: 'unknown', linkMethod: 'unresolved',
+    ctwaClid: null, sessionId: null, gclid: null, fbc: null, fbp: null,
+    utmSource: null, utmMedium: null, utmCampaign: null, utmContent: null, utmTerm: null,
+  };
+
+  // 1) Meta CTWA referral
+  const ctwa = msg.referral && (msg.referral.ctwa_clid || msg.referral.ctwaClid || msg.referral.clickId);
+  if (ctwa) {
+    return {
+      ...base, platform: 'meta', linkMethod: 'ctwa', ctwaClid: ctwa,
+      utmContent: msg.referral.source_id || msg.referral.ad_id || msg.referral.body || null,
+      utmCampaign: msg.referral.headline || null,
+    };
+  }
+
+  // 2) Google/LP token "(ref: XXXXXXXX)"
+  const m = /ref:\s*([0-9a-fA-F]{8})/.exec(msg.text || '');
+  if (m && env.DB) {
+    const prefix = m[1].toLowerCase();
+    try {
+      const s = await env.DB.prepare(
+        `SELECT session_id, gclid, fbc, fbp, utm_source, utm_medium, utm_campaign, utm_content, utm_term
+         FROM sessions WHERE lower(replace(session_id,'-','')) LIKE ? LIMIT 1`
+      ).bind(prefix + '%').first();
+      if (s) {
+        return {
+          ...base, platform: s.utm_source === 'meta-ads' ? 'meta' : (s.utm_source === 'google-ads' || s.gclid ? 'google' : 'organic'),
+          linkMethod: 'token', sessionId: s.session_id, gclid: s.gclid, fbc: s.fbc, fbp: s.fbp,
+          utmSource: s.utm_source, utmMedium: s.utm_medium, utmCampaign: s.utm_campaign, utmContent: s.utm_content, utmTerm: s.utm_term,
+        };
+      }
+    } catch (_) { /* fall through to unresolved */ }
+  }
+
+  return base;
+}
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}

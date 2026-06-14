@@ -1,174 +1,120 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Resultados de Campanha — Meta Ads</title>
+<title>Resultados — Dr. Renan Naves</title>
+<link rel="icon" href="/images/favicon.svg">
 
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
 
 <style>
-  :root {
-    --bg: #f7f7f8;
-    --card: #ffffff;
-    --border: #e4e4e7;
-    --line: #f0f0f1;
-    --text: #18181b;
-    --dim: #52525b;
-    --muted: #a1a1aa;
-    --blue:   #2563eb;
-    --green:  #16a34a;
-    --amber:  #d97706;
-    --red:    #dc2626;
-    --purple: #7c3aed;
+  /* Brand fonts (self-hosted, same files the site uses) */
+  @font-face{font-family:"Montserrat";font-style:normal;font-weight:100 900;font-display:swap;src:url("/shared/fonts/montserrat-var.woff2") format("woff2");}
+  @font-face{font-family:"Fira Sans";font-style:normal;font-weight:400;font-display:swap;src:url("/shared/fonts/firasans-400.woff2") format("woff2");}
+  @font-face{font-family:"Fira Sans";font-style:normal;font-weight:600;font-display:swap;src:url("/shared/fonts/firasans-600.woff2") format("woff2");}
+
+  :root, [data-theme="light"] {
+    --bg:#f3f3f3; --card:#ffffff; --card-2:#fafbfb; --border:#e2eaea; --line:#eef3f3;
+    --text:#0a3a3a; --dim:#4a6a6a; --muted:#8aa3a3;
+    --primary:#0e5353; --accent:#157776; --secondary:#6ccbbc;
+    --meta:#1877f2; --google:#ea8a00; --green:#16a34a; --red:#dc2626; --purple:#7c3aed;
+    --hero-bg:#0e5353; --hero-text:#ffffff; --hero-dim:#9ec9c3;
+    --shadow:0 1px 2px rgba(14,83,83,.05);
+  }
+  [data-theme="dark"] {
+    --bg:#081a1a; --card:#0f2a2a; --card-2:#0c2323; --border:#1b3a3a; --line:#163131;
+    --text:#e7f1ef; --dim:#a7c6c2; --muted:#6f9491;
+    --primary:#6ccbbc; --accent:#34b3a3; --secondary:#6ccbbc;
+    --meta:#5b9bf5; --google:#f5a93a; --green:#3ec16f; --red:#f06464; --purple:#a78bfa;
+    --hero-bg:#0a2222; --hero-text:#ffffff; --hero-dim:#7fa9a3;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
   }
 
-  * { box-sizing: border-box; }
-  html, body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
+  * { box-sizing:border-box; }
+  html,body {
+    background:var(--bg); color:var(--text);
+    font-family:"Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
   }
-  .mono {
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-  }
+  h1,h2,h3,.head { font-family:"Montserrat", ui-sans-serif, system-ui, sans-serif; }
+  .mono { font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
 
-  /* --- structural --- */
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.03);
-  }
-  .section-label {
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-weight: 600;
-    color: var(--muted);
-  }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); }
+  .section-label { font-size:.6875rem; text-transform:uppercase; letter-spacing:.12em; font-weight:700; color:var(--muted); }
 
-  /* --- kpi cards --- */
-  .kpi { padding: 1.125rem 1.25rem; position: relative; overflow: hidden; }
-  .kpi-rule {
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: var(--accent, var(--border));
-    opacity: 0.0; transition: opacity .25s ease;
-  }
-  .kpi:hover .kpi-rule { opacity: 0.55; }
-  .kpi-label {
-    font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em;
-    font-weight: 600; color: var(--dim);
-  }
-  .kpi-value { font-size: 1.85rem; font-weight: 600; line-height: 1.15; margin-top: 0.4rem; }
-  .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
-  .kpi-hero { background: var(--text); border-color: var(--text); }
-  .kpi-hero .kpi-label { color: #a1a1aa; }
-  .kpi-hero .kpi-value { color: #ffffff; }
-  .kpi-hero .kpi-sub { color: #71717a; }
+  .kpi { padding:1.05rem 1.2rem; position:relative; overflow:hidden; }
+  .kpi-rule { position:absolute; top:0; left:0; right:0; height:3px; background:var(--accent); opacity:0; transition:opacity .25s; }
+  .kpi:hover .kpi-rule { opacity:.65; }
+  .kpi-label { font-size:.6875rem; text-transform:uppercase; letter-spacing:.06em; font-weight:600; color:var(--dim); }
+  .kpi-value { font-size:1.7rem; font-weight:700; line-height:1.15; margin-top:.35rem; }
+  .kpi-sub { font-size:.72rem; color:var(--muted); margin-top:.25rem; }
+  .kpi-hero { background:var(--hero-bg); border-color:var(--hero-bg); }
+  .kpi-hero .kpi-label{color:var(--hero-dim);} .kpi-hero .kpi-value{color:var(--hero-text);} .kpi-hero .kpi-sub{color:var(--hero-dim);}
 
-  .accent-blue   { color: var(--blue);   }
-  .accent-green  { color: var(--green);  }
-  .accent-amber  { color: var(--amber);  }
-  .accent-purple { color: var(--purple); }
+  .pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:.12rem .45rem; border-radius:6px; }
+  .pill-meta   { background:color-mix(in srgb,var(--meta) 16%,transparent);   color:var(--meta); }
+  .pill-google { background:color-mix(in srgb,var(--google) 18%,transparent); color:var(--google); }
+  .pill-muted  { background:color-mix(in srgb,var(--muted) 18%,transparent);  color:var(--muted); }
+  .pill-green  { background:color-mix(in srgb,var(--green) 16%,transparent);  color:var(--green); }
+  .pill-amber  { background:color-mix(in srgb,var(--google) 18%,transparent); color:var(--google); }
+  .dot-meta{color:var(--meta)} .dot-google{color:var(--google)}
 
-  /* --- controls --- */
-  .seg { display: inline-flex; background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 2px; gap: 2px; }
-  .seg-btn {
-    padding: 0.34rem 0.7rem; font-size: 0.8125rem; font-weight: 500;
-    border-radius: 7px; color: var(--dim); cursor: pointer; white-space: nowrap;
-    transition: background .12s ease, color .12s ease;
-  }
-  .seg-btn:hover { color: var(--text); }
-  .seg-btn.active { background: var(--text); color: #fff; }
-  .date-input {
-    font-size: 0.8125rem; padding: 0.36rem 0.55rem; border: 1px solid var(--border);
-    border-radius: 8px; background: var(--card); color: var(--text);
-    font-family: "JetBrains Mono", ui-monospace, monospace;
-  }
-  .date-input:focus { outline: 2px solid color-mix(in srgb, var(--blue) 35%, transparent); outline-offset: -1px; }
-  .btn {
-    font-size: 0.8125rem; font-weight: 600; padding: 0.42rem 0.95rem;
-    border-radius: 8px; cursor: pointer; transition: opacity .12s ease, transform .04s ease;
-  }
-  .btn:active { transform: translateY(1px); }
-  .btn-primary { background: var(--blue); color: #fff; border: 1px solid var(--blue); }
-  .btn-primary:hover { opacity: 0.92; }
-  .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost:hover { background: #fafafa; }
+  .seg { display:inline-flex; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:2px; gap:2px; }
+  .seg-btn { padding:.34rem .72rem; font-size:.8125rem; font-weight:600; border-radius:8px; color:var(--dim); cursor:pointer; white-space:nowrap; transition:.12s; }
+  .seg-btn:hover{color:var(--text);} .seg-btn.active{ background:var(--primary); color:#fff; }
+  [data-theme="dark"] .seg-btn.active{ color:#06201f; }
 
-  /* --- table --- */
-  table { width: 100%; border-collapse: collapse; }
-  thead th {
-    font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;
-    font-weight: 600; color: var(--muted); text-align: right;
-    padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border);
-  }
-  thead th:first-child { text-align: left; }
-  tbody td { padding: 0.7rem 0.85rem; font-size: 0.875rem; text-align: right; border-bottom: 1px solid var(--line); }
-  tbody td:first-child { text-align: left; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr { transition: background .1s ease; }
-  tbody tr:hover { background: #fafafa; }
-  .tag {
-    display: inline-block; font-size: 0.625rem; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 0.1rem 0.4rem; border-radius: 5px; vertical-align: 1px;
-  }
-  .tag-amber { background: #fef3e2; color: var(--amber); }
-  .tag-muted { background: #f1f1f2; color: var(--muted); }
+  .date-input { font-size:.8125rem; padding:.36rem .55rem; border:1px solid var(--border); border-radius:9px; background:var(--card); color:var(--text); }
+  .date-input:focus{ outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent); outline-offset:-1px; }
+  .btn { font-size:.8125rem; font-weight:700; padding:.45rem 1rem; border-radius:9px; cursor:pointer; transition:.12s; }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:var(--accent); color:#fff; border:1px solid var(--accent); } .btn-primary:hover{opacity:.92;}
+  .btn-ghost{ background:var(--card); color:var(--text); border:1px solid var(--border); } .btn-ghost:hover{ background:var(--card-2); }
+  .btn-green{ background:var(--green); color:#fff; border:1px solid var(--green); }
+  .btn-sm{ font-size:.72rem; padding:.3rem .6rem; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--text);}
+  .btn-sm:hover{ background:var(--card-2);}
+  .icon-btn{ width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--card);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+  .icon-btn:hover{ background:var(--card-2);}
 
-  /* --- misc --- */
-  .notice {
-    display: flex; gap: 0.6rem; align-items: flex-start;
-    background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
-    border-radius: 12px; padding: 0.8rem 1rem; font-size: 0.8125rem;
-  }
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  #loadbar {
-    position: fixed; top: 0; left: 0; height: 2px; width: 0;
-    background: var(--blue); transition: width .3s ease, opacity .3s ease; z-index: 60;
-  }
-  .fade-in { animation: fadeIn 0.4s ease-out both; }
-  .stagger > * { animation: fadeIn 0.4s ease-out both; }
-  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
-  .stagger > *:nth-child(2) { animation-delay: 0.06s; }
-  .stagger > *:nth-child(3) { animation-delay: 0.10s; }
-  .stagger > *:nth-child(4) { animation-delay: 0.14s; }
-  .stagger > *:nth-child(5) { animation-delay: 0.18s; }
-  .stagger > *:nth-child(6) { animation-delay: 0.22s; }
-  .stagger > *:nth-child(7) { animation-delay: 0.26s; }
-  .stagger > *:nth-child(8) { animation-delay: 0.30s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
-  .is-loading .kpi-value, .is-loading .stat-v { color: var(--muted) !important; }
+  table{ width:100%; border-collapse:collapse; }
+  thead th{ font-size:.6875rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:var(--muted); text-align:right; padding:.55rem .8rem; border-bottom:1px solid var(--border); }
+  thead th:first-child{ text-align:left; }
+  tbody td{ padding:.65rem .8rem; font-size:.86rem; text-align:right; border-bottom:1px solid var(--line); }
+  tbody td:first-child{ text-align:left; }
+  tbody tr:last-child td{ border-bottom:none; } tbody tr:hover{ background:var(--card-2); }
+
+  .tab-btn{ padding:.5rem .2rem; font-weight:700; font-size:.9rem; color:var(--muted); border-bottom:2px solid transparent; cursor:pointer; }
+  .tab-btn.active{ color:var(--text); border-bottom-color:var(--accent); }
+
+  #loadbar{ position:fixed; top:0; left:0; height:2px; width:0; background:var(--accent); transition:width .3s,opacity .3s; z-index:60; }
+  .fade-in{ animation:fadeIn .4s ease-out both; }
+  .stagger>*{ animation:fadeIn .4s ease-out both; }
+  .stagger>*:nth-child(2){animation-delay:.04s}.stagger>*:nth-child(3){animation-delay:.08s}.stagger>*:nth-child(4){animation-delay:.12s}
+  .stagger>*:nth-child(5){animation-delay:.16s}.stagger>*:nth-child(6){animation-delay:.2s}.stagger>*:nth-child(7){animation-delay:.24s}
+  @keyframes fadeIn{ from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:translateY(0)} }
+  .is-loading .kpi-value{ color:var(--muted)!important; }
+  .notice{ display:flex; gap:.6rem; align-items:flex-start; background:color-mix(in srgb,var(--google) 12%,var(--card)); border:1px solid color-mix(in srgb,var(--google) 35%,transparent); color:var(--text); border-radius:12px; padding:.8rem 1rem; font-size:.82rem; }
+  .modal-bg{ position:fixed; inset:0; background:rgba(6,24,23,.55); backdrop-filter:blur(2px); z-index:70; display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .hidden{ display:none!important; }
 </style>
 </head>
 <body>
-
 <div id="loadbar"></div>
 
 <!-- ============================ AUTH GATE ============================ -->
-<div id="gate" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:rgba(247,247,248,0.96)">
+<div id="gate" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:var(--bg)">
   <div class="card w-full max-w-sm p-7 fade-in">
     <div class="flex items-center gap-3 mb-5">
-      <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--text)">
-        <svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="9" width="3.4" height="7" rx="1" fill="#fff"/><rect x="6.8" y="5" width="3.4" height="11" rx="1" fill="#fff"/><rect x="12.6" y="1" width="3.4" height="15" rx="1" fill="#fff"/></svg>
-      </div>
-      <div>
-        <div class="font-semibold leading-tight">Resultados de Campanha</div>
-        <div class="text-xs" style="color:var(--muted)">Acesso restrito</div>
-      </div>
+      <img src="/images/logo.webp" alt="Dr. Renan Naves" style="height:38px;width:auto">
     </div>
+    <div class="font-semibold head mb-1">Painel de Resultados</div>
+    <div class="text-xs mb-4" style="color:var(--muted)">Acesso restrito</div>
     <label class="section-label">Chave de acesso</label>
-    <input id="gate-key" type="password" autocomplete="off" placeholder="DASH_KEY"
-           class="date-input w-full mt-2" style="font-family:ui-sans-serif,system-ui,sans-serif">
+    <input id="gate-key" type="password" autocomplete="off" placeholder="DASH_KEY" class="date-input w-full mt-2">
     <div id="gate-error" class="hidden text-xs mt-2" style="color:var(--red)"></div>
     <button id="gate-submit" class="btn btn-primary w-full mt-4">Entrar</button>
   </div>
@@ -177,25 +123,36 @@
 <!-- ============================== APP =============================== -->
 <div id="app" class="hidden min-h-screen">
 
-  <!-- header -->
   <header class="border-b" style="border-color:var(--border);background:var(--card)">
-    <div class="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between gap-4">
+    <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:var(--text)">
-          <svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="9" width="3.4" height="7" rx="1" fill="#fff"/><rect x="6.8" y="5" width="3.4" height="11" rx="1" fill="#fff"/><rect x="12.6" y="1" width="3.4" height="15" rx="1" fill="#fff"/></svg>
-        </div>
-        <div>
-          <div class="font-semibold leading-tight">Resultados de Campanha</div>
-          <div class="text-xs" style="color:var(--muted)">Meta Ads · investimento, CPL e CPA</div>
+        <img src="/images/logo.webp" alt="Dr. Renan Naves" style="height:34px;width:auto">
+        <div class="hidden sm:block" style="border-left:1px solid var(--border);height:30px"></div>
+        <div class="hidden sm:block">
+          <div class="font-semibold head leading-tight">Painel de Resultados</div>
+          <div class="text-xs" style="color:var(--muted)">Meta Ads + Google Ads · WhatsApp</div>
         </div>
       </div>
-      <a href="/dash/" class="text-xs hover:underline" style="color:var(--dim)">Painel de tracking →</a>
+      <div class="flex items-center gap-2">
+        <button id="theme-toggle" class="icon-btn" title="Alternar tema" aria-label="Alternar tema">
+          <svg id="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
+          <svg id="icon-sun" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        </button>
+        <a href="/dash/" class="text-xs hover:underline self-center" style="color:var(--dim)">Tracking →</a>
+      </div>
+    </div>
+    <div class="max-w-6xl mx-auto px-5">
+      <nav class="flex gap-5">
+        <div class="tab-btn active" data-tab="resultados">Resultados</div>
+        <div class="tab-btn" data-tab="whatsapp">WhatsApp / Comercial</div>
+        <div class="tab-btn" data-tab="atribuicao">Atribuição (UTM)</div>
+      </nav>
     </div>
   </header>
 
   <main class="max-w-6xl mx-auto px-5 py-6 space-y-7">
 
-    <!-- date range picker -->
+    <!-- date range -->
     <section class="fade-in flex flex-wrap items-end gap-x-4 gap-y-3">
       <div class="seg" id="presets">
         <div class="seg-btn" data-preset="0">Hoje</div>
@@ -204,452 +161,565 @@
         <div class="seg-btn" data-preset="30">30 dias</div>
       </div>
       <div class="flex items-end gap-2">
-        <div>
-          <label class="section-label block mb-1">De</label>
-          <input id="date-from" type="date" class="date-input">
-        </div>
-        <div>
-          <label class="section-label block mb-1">Até</label>
-          <input id="date-to" type="date" class="date-input">
-        </div>
+        <div><label class="section-label block mb-1">De</label><input id="date-from" type="date" class="date-input"></div>
+        <div><label class="section-label block mb-1">Até</label><input id="date-to" type="date" class="date-input"></div>
         <button id="apply" class="btn btn-ghost">Aplicar</button>
       </div>
       <div class="ml-auto text-xs self-center" style="color:var(--muted)" id="range-label">&nbsp;</div>
     </section>
 
-    <!-- info notice (sync not configured / errors) -->
-    <div id="notice" class="notice hidden fade-in">
-      <span class="dot mt-1" style="background:#d97706"></span>
-      <span id="notice-text"></span>
+    <div id="notice" class="notice hidden fade-in"><span id="notice-text"></span></div>
+
+    <!-- ======================= TAB: RESULTADOS ======================= -->
+    <div id="tab-resultados">
+
+      <section>
+        <div class="section-label mb-2.5">Visão geral</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
+          <div class="card kpi"><div class="kpi-rule"></div>
+            <div class="kpi-label">Investimento</div>
+            <div class="kpi-value mono" id="k-spend">—</div>
+            <div class="kpi-sub"><span class="dot-meta">Meta</span> <span id="k-spend-meta" class="mono">—</span> · <span class="dot-google">Google</span> <span id="k-spend-google" class="mono">—</span></div>
+          </div>
+          <div class="card kpi kpi-hero">
+            <div class="kpi-label">CPL geral</div>
+            <div class="kpi-value mono" id="k-cpl">—</div>
+            <div class="kpi-sub"><span style="color:var(--hero-dim)">Meta</span> <span id="k-cpl-meta" class="mono">—</span> · <span style="color:var(--hero-dim)">Google</span> <span id="k-cpl-google" class="mono">—</span></div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--meta)"></div>
+            <div class="kpi-label">Cliques no anúncio · Meta</div>
+            <div class="kpi-value mono" id="k-clicks-meta" style="color:var(--meta)">—</div>
+            <div class="kpi-sub">Cliques pagos no Meta Ads</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--google)"></div>
+            <div class="kpi-label">Cliques no anúncio · Google</div>
+            <div class="kpi-value mono" id="k-clicks-google" style="color:var(--google)">—</div>
+            <div class="kpi-sub">Cliques pagos no Google Ads</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule"></div>
+            <div class="kpi-label">LP View</div>
+            <div class="kpi-value mono" id="k-lpview">—</div>
+            <div class="kpi-sub">Sessões na LP · <span id="k-lpview-google" class="mono">—</span> via Google</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--meta)"></div>
+            <div class="kpi-label">Conversas WPP · Meta</div>
+            <div class="kpi-value mono" id="k-conv-meta" style="color:var(--meta)">—</div>
+            <div class="kpi-sub">CTWA → WhatsApp</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--google)"></div>
+            <div class="kpi-label">Conversas WPP · Google</div>
+            <div class="kpi-value mono" id="k-conv-google" style="color:var(--google)">—</div>
+            <div class="kpi-sub">Clique WhatsApp na LP</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule"></div>
+            <div class="kpi-label">Conversas totais</div>
+            <div class="kpi-value mono" id="k-conv-total">—</div>
+            <div class="kpi-sub">Meta + Google</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- daily chart -->
+      <section class="card p-5 fade-in mt-7">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <div class="section-label">Performance diária</div>
+            <div class="font-semibold head mt-0.5">Investimento × leads por plataforma</div>
+          </div>
+          <div class="seg" id="line-metric">
+            <div class="seg-btn active" data-metric="leads">Leads</div>
+            <div class="seg-btn" data-metric="cpl">CPL</div>
+          </div>
+        </div>
+        <div class="h-72"><canvas id="chart-daily"></canvas></div>
+      </section>
+
+      <div class="grid lg:grid-cols-2 gap-5 mt-7">
+        <!-- top meta ads -->
+        <section class="card p-5 fade-in">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="pill pill-meta">Meta</span>
+            <div class="font-semibold head">Melhores anúncios <span style="color:var(--muted)">(top 10)</span></div>
+          </div>
+          <div class="overflow-x-auto -mx-1">
+            <table>
+              <thead><tr><th>Anúncio</th><th>Invest.</th><th>Cliques</th><th>Leads</th><th>CPL</th></tr></thead>
+              <tbody id="rows-ads"><tr><td colspan="5" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <!-- top google keywords -->
+        <section class="card p-5 fade-in">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="pill pill-google">Google</span>
+            <div class="font-semibold head">Palavras-chave de conversão <span style="color:var(--muted)">(top 10)</span></div>
+          </div>
+          <div class="overflow-x-auto -mx-1">
+            <table>
+              <thead><tr><th>Palavra-chave</th><th id="kw-col2">Leads</th><th id="kw-col3">Cliques</th></tr></thead>
+              <tbody id="rows-kw"><tr><td colspan="3" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="kw-note" class="text-xs mt-3" style="color:var(--muted)"></div>
+        </section>
+      </div>
     </div>
 
-    <!-- KPI overview -->
-    <section>
-      <div class="section-label mb-2.5">Visão geral da campanha</div>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 stagger">
-        <div class="card kpi" style="--accent:var(--amber)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">Investimento</div>
-          <div class="kpi-value mono" id="kpi-spend">—</div>
-          <div class="kpi-sub">Gasto total no Meta Ads</div>
-        </div>
-        <div class="card kpi" style="--accent:var(--blue)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">Leads</div>
-          <div class="kpi-value mono accent-blue" id="kpi-leads">—</div>
-          <div class="kpi-sub">utm_source = meta-ads</div>
-        </div>
-        <div class="card kpi kpi-hero">
-          <div class="kpi-label">CPL</div>
-          <div class="kpi-value mono" id="kpi-cpl">—</div>
-          <div class="kpi-sub">Investimento ÷ leads</div>
-        </div>
-        <div class="card kpi" style="--accent:var(--blue)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">Vendas</div>
-          <div class="kpi-value mono accent-blue" id="kpi-sales">—</div>
-          <div class="kpi-sub">utm_source = meta-ads</div>
-        </div>
-        <div class="card kpi kpi-hero">
-          <div class="kpi-label">CPA</div>
-          <div class="kpi-value mono" id="kpi-cpa">—</div>
-          <div class="kpi-sub">Investimento ÷ vendas</div>
-        </div>
-        <div class="card kpi" style="--accent:var(--green)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">Receita</div>
-          <div class="kpi-value mono accent-green" id="kpi-revenue">—</div>
-          <div class="kpi-sub">Vendas atribuídas ao Meta</div>
-        </div>
-        <div class="card kpi" style="--accent:var(--purple)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">ROAS</div>
-          <div class="kpi-value mono accent-purple" id="kpi-roas">—</div>
-          <div class="kpi-sub">Receita ÷ investimento</div>
-        </div>
-        <div class="card kpi" style="--accent:var(--muted)">
-          <div class="kpi-rule"></div>
-          <div class="kpi-label">Respostas de quiz</div>
-          <div class="kpi-value mono" id="kpi-quiz">—</div>
-          <div class="kpi-sub">/captura + /lp-do-sobral</div>
-        </div>
-      </div>
-    </section>
+    <!-- ======================= TAB: WHATSAPP ======================= -->
+    <div id="tab-whatsapp" class="hidden">
 
-    <!-- daily trend -->
-    <section class="card p-5 fade-in">
-      <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
-        <div>
-          <div class="section-label">Tendência diária</div>
-          <div class="font-semibold mt-0.5">Investimento e leads por dia</div>
+      <!-- funil comercial -->
+      <section>
+        <div class="section-label mb-2.5">Funil comercial</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
+          <div class="card kpi"><div class="kpi-rule"></div>
+            <div class="kpi-label">Leads</div>
+            <div class="kpi-value mono" id="f-leads">—</div>
+            <div class="kpi-sub">Conversas no período</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--secondary)"></div>
+            <div class="kpi-label">Leads qualificados</div>
+            <div class="kpi-value mono" id="f-qualified" style="color:var(--accent)">—</div>
+            <div class="kpi-sub">Marcado pela atendente</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--green)"></div>
+            <div class="kpi-label">Vendas (qtd)</div>
+            <div class="kpi-value mono" id="f-sales" style="color:var(--green)">—</div>
+            <div class="kpi-sub">Marcado pela atendente</div>
+          </div>
+          <div class="card kpi kpi-hero">
+            <div class="kpi-label">Valor vendido</div>
+            <div class="kpi-value mono" id="f-revenue">—</div>
+            <div class="kpi-sub">Soma das vendas</div>
+          </div>
         </div>
-        <div class="flex gap-5">
-          <div class="text-right">
-            <div class="kpi-label">Impressões</div>
-            <div class="mono text-sm font-semibold stat-v" id="stat-impressions">—</div>
-          </div>
-          <div class="text-right">
-            <div class="kpi-label">Cliques</div>
-            <div class="mono text-sm font-semibold stat-v" id="stat-clicks">—</div>
-          </div>
-          <div class="text-right">
-            <div class="kpi-label">CTR</div>
-            <div class="mono text-sm font-semibold stat-v" id="stat-ctr">—</div>
-          </div>
+        <div class="notice mt-3">
+          <span>
+            <strong>Qualificação e venda são manuais.</strong> A atendente do comercial sinaliza, na lista
+            abaixo, se a conversa virou <em>lead qualificado</em> ou <em>venda</em> (com valor). Não há como
+            saber isso antes da conversa — o lead só existe depois de converter na LP / abrir conversa.
+            Ao marcar, a conversão é enviada de volta à plataforma de origem (Meta CAPI / Google Ads).
+          </span>
         </div>
-      </div>
-      <div class="h-64"><canvas id="chart-daily"></canvas></div>
-    </section>
+      </section>
 
-    <!-- CPL by creative -->
-    <section class="card p-5 fade-in">
-      <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
-        <div>
-          <div class="section-label">CPL por criativo</div>
-          <div class="font-semibold mt-0.5">Custo por lead de cada anúncio</div>
+      <!-- inbox -->
+      <section class="card p-5 fade-in mt-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="font-semibold head">Lista de leads (WhatsApp)</div>
+          <div class="seg" id="inbox-filter">
+            <div class="seg-btn active" data-status="">Todos</div>
+            <div class="seg-btn" data-status="new">Novos</div>
+            <div class="seg-btn" data-status="qualified">Qualificados</div>
+            <div class="seg-btn" data-status="sale">Vendas</div>
+            <div class="seg-btn" data-status="lost">Perdidos</div>
+          </div>
         </div>
-        <div class="text-xs self-center" style="color:var(--muted)">
-          Custo (nome do anúncio) cruzado com leads (utm_content)
+        <div class="overflow-x-auto -mx-1">
+          <table>
+            <thead><tr><th>Contato</th><th>Origem</th><th>Campanha</th><th>Status</th><th>Valor</th><th>Ações</th></tr></thead>
+            <tbody id="rows-inbox"><tr><td colspan="6" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+          </table>
         </div>
-      </div>
-      <div class="overflow-x-auto -mx-1">
-        <table>
-          <thead>
-            <tr>
-              <th>Criativo</th>
-              <th>Investimento</th>
-              <th>Impressões</th>
-              <th>CTR</th>
-              <th>Leads</th>
-              <th>CPL</th>
-            </tr>
-          </thead>
-          <tbody id="creative-rows">
-            <tr><td colspan="6" class="text-center" style="color:var(--muted)">Carregando…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <div id="inbox-empty" class="hidden text-sm mt-4 p-4 rounded-xl" style="background:var(--card-2);color:var(--dim)">
+          Nenhuma conversa ainda. Esta lista é preenchida automaticamente quando o <strong>uazapi</strong>
+          estiver conectado ao webhook <code>/webhook/uazapi/&lt;slug&gt;</code>. A infraestrutura já está pronta.
+        </div>
+      </section>
+    </div>
+
+    <!-- ======================= TAB: ATRIBUIÇÃO (UTM) ======================= -->
+    <div id="tab-atribuicao" class="hidden">
+
+      <!-- legenda das UTMs pré-estabelecidas -->
+      <details class="card p-4 fade-in mb-5">
+        <summary class="cursor-pointer font-semibold head text-sm">Padrão de UTMs por origem (clique para ver)</summary>
+        <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 mt-3 text-xs" style="color:var(--dim)">
+          <div>• <strong>Orgânico Site</strong> — sem UTM (detectado pelo referrer de busca)</div>
+          <div>• <strong>Google Ads Site</strong> — <code>utm_source=google-ads</code> (gclid também)</div>
+          <div>• <strong>Google Meu Negócio</strong> — <code>utm_source=google-meu-negocio</code></div>
+          <div>• <strong>Instagram Bio</strong> — <code>utm_source=instagram-bio</code> (linktree → site/wpp)</div>
+          <div>• <strong>Meta Ads</strong> — <code>utm_source=meta-ads</code> (+ CTWA)</div>
+          <div>• <strong>TikTok Bio</strong> — <code>utm_source=tiktok-bio</code> (linktree → site/wpp)</div>
+          <div>• <strong>Indicação</strong> — sem UTM · <em>tag manual</em> na lista</div>
+          <div>• <strong>Remarketing</strong> — sem UTM · <em>tag manual</em> na lista</div>
+        </div>
+      </details>
+
+      <!-- resumo por origem -->
+      <section class="mb-6">
+        <div class="section-label mb-2.5">Resumo por origem</div>
+        <div class="card overflow-x-auto">
+          <table>
+            <thead><tr><th>Origem</th><th>Leads</th><th>Qualificados</th><th>Vendas</th><th>Valor</th></tr></thead>
+            <tbody id="rows-origins"><tr><td colspan="5" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- detalhe lead a lead -->
+      <section class="card p-5 fade-in">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div class="font-semibold head">Leads por UTM <span style="color:var(--muted)">(lead a lead · conectado ao WhatsApp)</span></div>
+          <select id="origin-filter" class="date-input">
+            <option value="">Todas as origens</option>
+          </select>
+        </div>
+        <div class="overflow-x-auto -mx-1">
+          <table>
+            <thead><tr><th>Contato</th><th>Origem</th><th>Fonte / Mídia</th><th>Campanha</th><th>Conteúdo / Termo</th><th>Status</th><th>Tag origem</th></tr></thead>
+            <tbody id="rows-attr"><tr><td colspan="7" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="attr-empty" class="hidden text-sm mt-4 p-4 rounded-xl" style="background:var(--card-2);color:var(--dim)">
+          Nenhuma conversa no período. Preenche automaticamente quando o uazapi estiver conectado.
+        </div>
+      </section>
+    </div>
 
     <!-- sync footer -->
-    <footer class="flex items-center gap-2 text-xs pb-4" style="color:var(--muted)">
-      <span class="dot" id="sync-dot" style="background:var(--muted)"></span>
-      <span id="sync-status">Verificando sincronização…</span>
+    <footer class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs pb-6" style="color:var(--muted)">
+      <span><span class="dot-meta">●</span> Meta: <span id="sync-meta">—</span></span>
+      <span><span class="dot-google">●</span> Google: <span id="sync-google">—</span></span>
     </footer>
-
   </main>
+</div>
+
+<!-- ============================ CONFIRM MODAL ============================ -->
+<div id="modal" class="modal-bg hidden">
+  <div class="card w-full max-w-md p-6 fade-in">
+    <div class="font-semibold head text-lg mb-1" id="modal-title">Confirmar</div>
+    <div class="text-sm mb-4" style="color:var(--dim)" id="modal-text"></div>
+    <div id="modal-value-wrap" class="hidden mb-4">
+      <label class="section-label block mb-1">Valor da venda (R$)</label>
+      <input id="modal-value" type="number" min="0" step="0.01" class="date-input w-full" placeholder="0,00">
+    </div>
+    <div id="modal-error" class="hidden text-xs mb-3" style="color:var(--red)"></div>
+    <div class="flex justify-end gap-2">
+      <button id="modal-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="modal-ok" class="btn btn-primary">Confirmar</button>
+    </div>
+  </div>
 </div>
 
 <script>
 (function () {
   'use strict';
 
-  var API = '/api/campaign-report';
-  var KEY = '';
-  var chart = null;
-  var state = { from: '', to: '', preset: '7' };
+  var REPORT = '/api/campaign-report', INBOX = '/api/leads-inbox', MARK = '/api/mark-conversion', ATTR = '/api/utm-attribution';
+  var KEY = '', chart = null, lineMetric = 'leads', tab = 'resultados', inboxStatus = '', attrFilter = '';
+  var state = { from:'', to:'', preset:'7' };
+  var lastReport = null, originFilterBuilt = false;
+  var ORIGINS = [
+    ['organico-site','Orgânico Site'], ['google-ads','Google Ads Site'], ['google-meu-negocio','Google Meu Negócio'],
+    ['instagram-bio','Instagram Bio'], ['meta-ads','Meta Ads'], ['tiktok-bio','TikTok Bio'],
+    ['indicacao','Indicação'], ['remarketing','Remarketing'], ['outro','Outro / não identificado']
+  ];
+  var ORIGIN_LABEL = {}; ORIGINS.forEach(function(o){ ORIGIN_LABEL[o[0]]=o[1]; });
 
-  // -------------------------------------------------------------- helpers
-  function $(id) { return document.getElementById(id); }
-  function pad(n) { return String(n).padStart(2, '0'); }
-  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function todayYmd() { return ymd(new Date()); }
-  function shiftYmd(s, days) {
-    var d = new Date(s + 'T00:00:00');
-    d.setDate(d.getDate() + days);
-    return ymd(d);
-  }
-  function presetRange(p) {
-    var to = todayYmd();
-    if (p === '0') return { from: to, to: to };
-    return { from: shiftYmd(to, -(parseInt(p, 10) - 1)), to: to };
-  }
-  function daysBetween(a, b) {
-    return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000) + 1;
-  }
+  function $(id){ return document.getElementById(id); }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function ymd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function todayYmd(){ return ymd(new Date()); }
+  function shiftYmd(s,days){ var d=new Date(s+'T00:00:00'); d.setDate(d.getDate()+days); return ymd(d); }
+  function presetRange(p){ var to=todayYmd(); if(p==='0') return {from:to,to:to}; return {from:shiftYmd(to,-(parseInt(p,10)-1)),to:to}; }
+  function daysBetween(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000)+1; }
+  function shortDate(s){ var p=s.split('-'); return p[2]+'/'+p[1]; }
 
-  var brl = function (n) { return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
-  var int = function (n) { return Math.round(Number(n)).toLocaleString('pt-BR'); };
-  function num(n, d) { return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }); }
-  function pct(n) { return num(n * 100, 2) + '%'; }
-  function orDash(v, fmt) { return (v === null || v === undefined) ? '—' : fmt(v); }
-  function compact(n) {
-    if (n >= 1000000) return num(n / 1000000, 1) + 'M';
-    if (n >= 1000) return num(n / 1000, n % 1000 === 0 ? 0 : 1) + 'k';
-    return int(n);
-  }
-  function shortDate(s) { var p = s.split('-'); return p[2] + '/' + p[1]; }
+  var brl=function(n){ return Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); };
+  var int=function(n){ return Math.round(Number(n)).toLocaleString('pt-BR'); };
+  function num(n,d){ return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+  function orDash(v,fmt){ return (v===null||v===undefined)?'—':fmt(v); }
+  function compact(n){ if(n>=1e6) return num(n/1e6,1)+'M'; if(n>=1000) return num(n/1000, n%1000===0?0:1)+'k'; return int(n); }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function relTime(ts){ if(!ts) return 'sem sync'; var d=Math.floor(Date.now()/1000)-ts;
+    if(d<90) return 'agora há pouco'; if(d<3600) return 'há '+Math.round(d/60)+' min';
+    if(d<86400) return 'há '+Math.round(d/3600)+' h'; return 'há '+Math.round(d/86400)+' dia(s)'; }
 
-  function relTime(unixSec) {
-    var diff = Math.floor(Date.now() / 1000) - unixSec;
-    if (diff < 90) return 'agora há pouco';
-    if (diff < 3600) return 'há ' + Math.round(diff / 60) + ' min';
-    if (diff < 86400) return 'há ' + Math.round(diff / 3600) + ' h';
-    return 'há ' + Math.round(diff / 86400) + ' dia(s)';
-  }
+  // -------- theme --------
+  function applyTheme(t){ document.documentElement.setAttribute('data-theme',t);
+    $('icon-moon').classList.toggle('hidden', t==='dark'); $('icon-sun').classList.toggle('hidden', t!=='dark');
+    try{ localStorage.setItem('dashTheme',t); }catch(e){}
+    if(lastReport) renderChart(lastReport.daily||[]); }
+  (function initTheme(){ var t='light'; try{ t=localStorage.getItem('dashTheme')||'light'; }catch(e){} applyTheme(t); })();
 
-  // -------------------------------------------------------------- loadbar
-  var barTimer = null;
-  function barStart() {
-    var b = $('loadbar');
-    b.style.opacity = '1'; b.style.width = '0';
-    requestAnimationFrame(function () { b.style.width = '75%'; });
-  }
-  function barDone() {
-    var b = $('loadbar');
-    b.style.width = '100%';
-    clearTimeout(barTimer);
-    barTimer = setTimeout(function () { b.style.opacity = '0'; b.style.width = '0'; }, 300);
-  }
+  // -------- loadbar --------
+  var barTimer=null;
+  function barStart(){ var b=$('loadbar'); b.style.opacity='1'; b.style.width='0'; requestAnimationFrame(function(){ b.style.width='75%'; }); }
+  function barDone(){ var b=$('loadbar'); b.style.width='100%'; clearTimeout(barTimer); barTimer=setTimeout(function(){ b.style.opacity='0'; b.style.width='0'; },300); }
 
-  // ----------------------------------------------------------------- auth
-  function initialKey() {
-    var u = new URL(location.href);
-    var k = u.searchParams.get('key');
-    if (k) {
-      try { sessionStorage.setItem('dashKey', k); } catch (e) {}
-      u.searchParams.delete('key');
-      history.replaceState(null, '', u.pathname + u.search + u.hash);
-      return k;
-    }
-    try { return sessionStorage.getItem('dashKey') || ''; } catch (e) { return ''; }
+  // -------- auth --------
+  function initialKey(){ var u=new URL(location.href), k=u.searchParams.get('key');
+    if(k){ try{ sessionStorage.setItem('dashKey',k); }catch(e){} u.searchParams.delete('key'); history.replaceState(null,'',u.pathname+u.search+u.hash); return k; }
+    try{ return sessionStorage.getItem('dashKey')||''; }catch(e){ return ''; } }
+  function openGate(msg){ $('app').classList.add('hidden'); $('gate').classList.remove('hidden');
+    var err=$('gate-error'); if(msg){ err.textContent=msg; err.classList.remove('hidden'); } else err.classList.add('hidden'); $('gate-key').focus(); }
+  function submitGate(){ var k=$('gate-key').value.trim(); if(!k) return; KEY=k;
+    try{ sessionStorage.setItem('dashKey',k); }catch(e){} $('gate').classList.add('hidden'); $('app').classList.remove('hidden'); loadAll(); }
+
+  // -------- fetch --------
+  function qs(){ return 'key='+encodeURIComponent(KEY)+'&from='+encodeURIComponent(state.from)+'&to='+encodeURIComponent(state.to); }
+  function loadAll(){ loadReport(); loadInbox(); if(tab==='atribuicao') loadAttribution(); }
+
+  function loadReport(){
+    barStart(); $('app').classList.add('is-loading');
+    fetch(REPORT+'?'+qs()).then(function(r){
+      if(r.status===401){ barDone(); openGate('Chave inválida.'); throw 'auth'; }
+      if(!r.ok) throw new Error('Erro '+r.status); return r.json();
+    }).then(function(d){ barDone(); $('app').classList.remove('is-loading');
+      if(d.error){ showNotice(d.error); return; } lastReport=d; renderReport(d);
+    }).catch(function(e){ if(e==='auth') return; barDone(); $('app').classList.remove('is-loading'); showNotice('Falha ao carregar resultados: '+(e.message||e)); });
   }
 
-  function openGate(msg) {
-    $('app').classList.add('hidden');
-    $('gate').classList.remove('hidden');
-    var err = $('gate-error');
-    if (msg) { err.textContent = msg; err.classList.remove('hidden'); }
-    else { err.classList.add('hidden'); }
-    $('gate-key').focus();
+  function loadInbox(){
+    fetch(INBOX+'?'+qs()+'&status='+encodeURIComponent(inboxStatus)).then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
+    }).then(renderInbox).catch(function(){ /* keep silent; report carries the main error */ });
   }
 
-  function submitGate() {
-    var k = $('gate-key').value.trim();
-    if (!k) { return; }
-    KEY = k;
-    try { sessionStorage.setItem('dashKey', k); } catch (e) {}
-    $('gate').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    loadData();
-  }
+  function showNotice(t){ $('notice-text').textContent=t; $('notice').classList.remove('hidden'); }
+  function hideNotice(){ $('notice').classList.add('hidden'); }
 
-  // ------------------------------------------------------------- fetching
-  function loadData() {
-    barStart();
-    $('app').classList.add('is-loading');
-    var url = API + '?key=' + encodeURIComponent(KEY)
-            + '&from=' + encodeURIComponent(state.from)
-            + '&to=' + encodeURIComponent(state.to);
-
-    fetch(url)
-      .then(function (res) {
-        if (res.status === 401) { barDone(); openGate('Chave inválida.'); throw 'auth'; }
-        if (!res.ok) { throw new Error('Erro ' + res.status); }
-        return res.json();
-      })
-      .then(function (data) {
-        barDone();
-        $('app').classList.remove('is-loading');
-        if (data.error) { showNotice(data.error); return; }
-        render(data);
-      })
-      .catch(function (err) {
-        if (err === 'auth') { return; }
-        barDone();
-        $('app').classList.remove('is-loading');
-        showNotice('Não foi possível carregar os dados: ' + (err.message || err) + '.');
-      });
-  }
-
-  function showNotice(text) {
-    $('notice-text').textContent = text;
-    $('notice').classList.remove('hidden');
-  }
-  function hideNotice() { $('notice').classList.add('hidden'); }
-
-  // ------------------------------------------------------------- renderer
-  function render(d) {
+  // -------- render: report --------
+  function renderReport(d){
     hideNotice();
+    $('range-label').textContent = shortDate(d.from)+' – '+shortDate(d.to)+' · '+daysBetween(d.from,d.to)+' dia(s)';
+    var m=d.meta||{}, g=d.google||{}, t=d.totals||{};
 
-    $('range-label').textContent =
-      shortDate(d.from) + ' – ' + shortDate(d.to) + ' · ' + daysBetween(d.from, d.to) + ' dia(s)';
+    $('k-spend').textContent = brl(t.spend||0);
+    $('k-spend-meta').textContent = brl(m.spend||0);
+    $('k-spend-google').textContent = brl(g.spend||0);
+    $('k-cpl').textContent = orDash(t.cpl, brl);
+    $('k-cpl-meta').textContent = orDash(m.cpl, brl);
+    $('k-cpl-google').textContent = orDash(g.cpl, brl);
+    $('k-clicks-meta').textContent = int(m.clicks||0);
+    $('k-clicks-google').textContent = int(g.clicks||0);
+    $('k-lpview').textContent = int(d.lp_view||0);
+    $('k-lpview-google').textContent = int(d.lp_view_google||0);
+    $('k-conv-meta').textContent = int(m.leads||0);
+    $('k-conv-google').textContent = int(g.leads||0);
+    $('k-conv-total').textContent = int(t.leads||0);
 
-    // KPI cards
-    $('kpi-spend').textContent   = brl(d.spend);
-    $('kpi-leads').textContent   = int(d.leads);
-    $('kpi-cpl').textContent     = orDash(d.cpl, brl);
-    $('kpi-sales').textContent   = int(d.sales);
-    $('kpi-cpa').textContent     = orDash(d.cpa, brl);
-    $('kpi-revenue').textContent = brl(d.revenue);
-    $('kpi-roas').textContent    = orDash(d.roas, function (v) { return num(v, 2) + '×'; });
-    $('kpi-quiz').textContent    = int(d.quiz_responses);
+    var f=d.funnel||{};
+    $('f-leads').textContent = int(f.leads||0);
+    $('f-qualified').textContent = int(f.qualified||0);
+    $('f-sales').textContent = int(f.sales||0);
+    $('f-revenue').textContent = brl(f.revenue||0);
 
-    // secondary stats
-    $('stat-impressions').textContent = int(d.impressions);
-    $('stat-clicks').textContent      = int(d.clicks);
-    $('stat-ctr').textContent         = d.impressions > 0 ? pct(d.clicks / d.impressions) : '—';
+    renderAds(d.top_ads_meta||[]);
+    renderKeywords(d.top_keywords_google||[]);
+    renderChart(d.daily||[]);
 
-    renderChart(d.daily || []);
-    renderCreatives(d.creatives || []);
-    renderSync(d);
+    var s=d.sync||{};
+    $('sync-meta').textContent = s.meta_last_synced_at ? ('custos '+relTime(s.meta_last_synced_at)) : 'sync de custos não configurado';
+    $('sync-google').textContent = s.google_last_synced_at ? ('custos '+relTime(s.google_last_synced_at)) : 'relatórios não conectados';
   }
 
-  function renderChart(daily) {
-    var ctx = $('chart-daily').getContext('2d');
-    var labels = daily.map(function (r) { return shortDate(r.date); });
-    var spend = daily.map(function (r) { return r.spend; });
-    var leads = daily.map(function (r) { return r.leads; });
-
-    if (chart) { chart.destroy(); }
-    chart = new Chart(ctx, {
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            type: 'bar', label: 'Investimento', data: spend, yAxisID: 'y',
-            backgroundColor: 'rgba(217,119,6,0.18)', borderColor: '#d97706',
-            borderWidth: 1, borderRadius: 4, maxBarThickness: 30, order: 2
-          },
-          {
-            type: 'line', label: 'Leads', data: leads, yAxisID: 'y1',
-            borderColor: '#16a34a', backgroundColor: '#16a34a',
-            borderWidth: 2, tension: 0.35, pointRadius: 2.5, pointHoverRadius: 4.5, order: 1
-          }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-          x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 0, autoSkipPadding: 14 } },
-          y: {
-            position: 'left', beginAtZero: true, grid: { color: '#f0f0f1' },
-            ticks: { font: { size: 11 }, callback: function (v) { return 'R$ ' + compact(v); } }
-          },
-          y1: {
-            position: 'right', beginAtZero: true, grid: { drawOnChartArea: false },
-            ticks: { font: { size: 11 }, precision: 0 }
-          }
-        },
-        plugins: {
-          legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, usePointStyle: true, padding: 16, font: { size: 12 } } },
-          tooltip: {
-            callbacks: {
-              label: function (c) {
-                return c.dataset.label + ': ' + (c.dataset.yAxisID === 'y' ? brl(c.parsed.y) : int(c.parsed.y));
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  function renderCreatives(rows) {
-    var tb = $('creative-rows');
-    if (!rows.length) {
-      tb.innerHTML = '<tr><td colspan="6" class="text-center" style="color:var(--muted)">Nenhum dado de criativo no período.</td></tr>';
-      return;
-    }
-    var html = rows.map(function (c) {
-      var ctr = c.impressions > 0 ? pct(c.clicks / c.impressions) : '—';
-      var placeholder = /^\(sem /.test(c.name);
-      var nameCell = '<span' + (placeholder ? ' style="color:var(--muted)"' : '') + '>' + esc(c.name) + '</span>';
-      var badge = '';
-      if (c.spend > 0 && c.leads === 0) { badge = ' <span class="tag tag-amber">sem leads</span>'; }
-      else if (c.spend === 0 && c.leads > 0) { badge = ' <span class="tag tag-muted">sem custo</span>'; }
-      return '<tr>'
-        + '<td>' + nameCell + badge + '</td>'
-        + '<td class="mono">' + brl(c.spend) + '</td>'
-        + '<td class="mono">' + int(c.impressions) + '</td>'
-        + '<td class="mono">' + ctr + '</td>'
-        + '<td class="mono">' + int(c.leads) + '</td>'
-        + '<td class="mono font-semibold">' + orDash(c.cpl, brl) + '</td>'
-        + '</tr>';
+  function renderAds(rows){
+    var tb=$('rows-ads');
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="5" class="text-center" style="color:var(--muted)">Sem dados de anúncios no período.</td></tr>'; return; }
+    tb.innerHTML = rows.map(function(c){
+      var badge = (c.spend>0 && c.leads===0) ? ' <span class="pill pill-amber">sem leads</span>' : '';
+      return '<tr><td>'+esc(c.name)+badge+'</td><td class="mono">'+brl(c.spend)+'</td><td class="mono">'+int(c.clicks)+'</td><td class="mono">'+int(c.leads)+'</td><td class="mono font-semibold">'+orDash(c.cpl,brl)+'</td></tr>';
     }).join('');
-    tb.innerHTML = html;
   }
 
-  function renderSync(d) {
-    var dot = $('sync-dot');
-    var label = $('sync-status');
-    if (!d.last_synced_at) {
-      dot.style.background = 'var(--muted)';
-      label.textContent = 'Sincronização de custos ainda não rodou — configure o cron (cron-worker/, docs/ad-spend-sync.md).';
-      if (d.spend === 0) {
-        showNotice('Os custos do Meta Ads ainda não foram sincronizados. Os cards de investimento, CPL, CPA e ROAS ficam zerados até o cron rodar — veja docs/ad-spend-sync.md.');
-      }
-      return;
-    }
-    var stale = (Math.floor(Date.now() / 1000) - d.last_synced_at) > 7200;
-    dot.style.background = stale ? 'var(--amber)' : 'var(--green)';
-    label.textContent = 'Custos do Meta Ads sincronizados ' + relTime(d.last_synced_at)
-      + (stale ? ' — dado pode estar desatualizado.' : '.');
+  function renderKeywords(rows){
+    var tb=$('rows-kw'), fromLead = rows.length && rows[0].source==='lead';
+    $('kw-col2').textContent = fromLead ? 'Leads' : 'Conversões';
+    $('kw-col3').textContent = fromLead ? '—' : 'Cliques';
+    $('kw-note').textContent = fromLead
+      ? 'Derivado do lado do lead (utm_term das sessões google-ads). Conecte os relatórios do Google Ads para conversões/cliques por palavra-chave.'
+      : '';
+    if(!rows.length){ tb.innerHTML='<tr><td colspan="3" class="text-center" style="color:var(--muted)">Sem palavras-chave no período.</td></tr>'; return; }
+    tb.innerHTML = rows.map(function(k){
+      var c2 = fromLead ? int(k.leads||0) : int(k.conversions||0);
+      var c3 = fromLead ? '—' : int(k.clicks||0);
+      return '<tr><td>'+esc(k.keyword)+'</td><td class="mono">'+c2+'</td><td class="mono">'+c3+'</td></tr>';
+    }).join('');
   }
 
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  function cssvar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function hexToRgba(hex, a){
+    var h=String(hex).replace('#',''); if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+    if(isNaN(r)||isNaN(g)||isNaN(b)) return hex;
+    return 'rgba('+r+','+g+','+b+','+a+')';
+  }
+  function renderChart(daily){
+    var ctx=$('chart-daily').getContext('2d');
+    var labels=daily.map(function(r){ return shortDate(r.date); });
+    var metaC=cssvar('--meta'), googleC=cssvar('--google'), gridC=cssvar('--line'), tickC=cssvar('--muted');
+    var metaLine = lineMetric==='cpl' ? daily.map(function(r){return r.meta_cpl;}) : daily.map(function(r){return r.meta_leads;});
+    var googleLine = lineMetric==='cpl' ? daily.map(function(r){return r.google_cpl;}) : daily.map(function(r){return r.google_leads;});
+    var lineLabelM = lineMetric==='cpl' ? 'CPL Meta' : 'Leads Meta';
+    var lineLabelG = lineMetric==='cpl' ? 'CPL Google' : 'Leads Google';
+
+    if(chart) chart.destroy();
+    chart=new Chart(ctx,{ data:{ labels:labels, datasets:[
+      { type:'bar', label:'Invest. Meta', data:daily.map(function(r){return r.meta_spend;}), yAxisID:'y',
+        backgroundColor:hexToRgba(metaC,.22), borderColor:metaC, borderWidth:1, borderRadius:4, maxBarThickness:22, order:3 },
+      { type:'bar', label:'Invest. Google', data:daily.map(function(r){return r.google_spend;}), yAxisID:'y',
+        backgroundColor:hexToRgba(googleC,.22), borderColor:googleC, borderWidth:1, borderRadius:4, maxBarThickness:22, order:3 },
+      { type:'line', label:lineLabelM, data:metaLine, yAxisID:'y1', borderColor:metaC, backgroundColor:metaC, borderWidth:2, tension:.35, pointRadius:2, pointHoverRadius:4, order:1 },
+      { type:'line', label:lineLabelG, data:googleLine, yAxisID:'y1', borderColor:googleC, backgroundColor:googleC, borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:2, pointHoverRadius:4, order:1 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{ grid:{display:false}, ticks:{ color:tickC, font:{size:11}, maxRotation:0, autoSkipPadding:14 } },
+        y:{ position:'left', beginAtZero:true, grid:{color:gridC}, ticks:{ color:tickC, font:{size:11}, callback:function(v){return 'R$ '+compact(v);} } },
+        y1:{ position:'right', beginAtZero:true, grid:{drawOnChartArea:false}, ticks:{ color:tickC, font:{size:11},
+              callback:function(v){ return lineMetric==='cpl' ? 'R$ '+compact(v) : int(v); } } }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{ color:cssvar('--dim'), boxWidth:9, boxHeight:9, usePointStyle:true, padding:14, font:{size:11} } },
+        tooltip:{ callbacks:{ label:function(c){ var isMoney = c.dataset.yAxisID==='y' || (lineMetric==='cpl' && c.dataset.yAxisID==='y1');
+          return c.dataset.label+': '+(isMoney?brl(c.parsed.y||0):int(c.parsed.y||0)); } } } }
+    }});
+  }
+
+  // -------- render: inbox --------
+  function platformPill(p){ if(p==='meta') return '<span class="pill pill-meta">Meta</span>';
+    if(p==='google') return '<span class="pill pill-google">Google</span>'; return '<span class="pill pill-muted">'+esc(p||'?')+'</span>'; }
+  function statusPill(s){ var map={ new:['pill-muted','Novo'], qualified:['pill-amber','Qualificado'], sale:['pill-green','Venda'], lost:['pill-muted','Perdido'] };
+    var v=map[s]||map.new; return '<span class="pill '+v[0]+'">'+v[1]+'</span>'; }
+
+  function renderInbox(d){
+    var tb=$('rows-inbox'), empty=$('inbox-empty');
+    var rows=d.leads||[];
+    if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    tb.innerHTML = rows.map(function(l){
+      var contact = '<div>'+esc(l.name||'(sem nome)')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(l.phone||'')+'</div>';
+      var origin = platformPill(l.platform) + (l.attributable?'':' <span class="pill pill-muted" title="Sem id de clique para enviar conversão">manual</span>');
+      var camp = esc(l.utm_campaign||l.utm_content||'—');
+      var val = l.sale_value!=null ? brl(l.sale_value) : '—';
+      var actions = ''
+        + '<button class="btn-sm" data-act="qualified" data-id="'+l.id+'" '+(l.is_qualified?'disabled style="opacity:.5"':'')+'>Qualificar</button> '
+        + '<button class="btn-sm" data-act="sale" data-id="'+l.id+'" '+(l.status==='sale'?'disabled style="opacity:.5"':'')+'>Venda</button> '
+        + '<button class="btn-sm" data-act="lost" data-id="'+l.id+'">Perdido</button>';
+      return '<tr><td>'+contact+'</td><td>'+origin+'</td><td>'+camp+'</td><td>'+statusPill(l.status)+'</td><td class="mono">'+val+'</td><td style="white-space:nowrap">'+actions+'</td></tr>';
+    }).join('');
+    tb.querySelectorAll('button[data-act]').forEach(function(b){
+      b.addEventListener('click', function(){ openMark(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-act')); });
     });
   }
 
-  // ----------------------------------------------------------- date picker
-  function applyState() {
-    $('date-from').value = state.from;
-    $('date-to').value = state.to;
-    var btns = document.querySelectorAll('#presets .seg-btn');
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].classList.toggle('active', state.preset === btns[i].getAttribute('data-preset'));
-    }
+  // -------- render: atribuição (UTM) --------
+  function originPillClass(o){ if(o==='meta-ads') return 'pill-meta'; if(o==='google-ads') return 'pill-google';
+    if(o==='indicacao'||o==='remarketing') return 'pill-green'; return 'pill-muted'; }
+  function buildOriginFilter(){ if(originFilterBuilt) return; originFilterBuilt=true;
+    var sel=$('origin-filter'); ORIGINS.forEach(function(o){ var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; sel.appendChild(op); }); }
+  function renderOrigins(list){
+    var tb=$('rows-origins');
+    if(!list.length){ tb.innerHTML='<tr><td colspan="5" class="text-center" style="color:var(--muted)">Sem dados no período.</td></tr>'; return; }
+    tb.innerHTML=list.map(function(o){
+      return '<tr><td><span class="pill '+originPillClass(o.origin)+'">'+esc(o.label)+'</span></td><td class="mono">'+int(o.leads)+'</td><td class="mono">'+int(o.qualified)+'</td><td class="mono">'+int(o.sales)+'</td><td class="mono">'+brl(o.revenue||0)+'</td></tr>';
+    }).join('');
+  }
+  function originSelectHtml(row){
+    var opts='<option value="">Automático ('+esc(row.origin_label)+')</option>';
+    ORIGINS.forEach(function(o){ var s=(row.origin_manual && row.origin===o[0])?' selected':''; opts+='<option value="'+o[0]+'"'+s+'>'+esc(o[1])+'</option>'; });
+    return '<select class="btn-sm origin-tag" data-id="'+row.id+'">'+opts+'</select>';
+  }
+  function renderAttr(d){
+    buildOriginFilter(); renderOrigins(d.origins||[]);
+    var tb=$('rows-attr'), empty=$('attr-empty'), rows=d.rows||[];
+    if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    tb.innerHTML=rows.map(function(r){
+      var contact='<div>'+esc(r.name||'(sem nome)')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(r.phone||'')+'</div>';
+      var badge='<span class="pill '+originPillClass(r.origin)+'">'+esc(r.origin_label)+'</span>'+(r.origin_manual?' <span class="pill pill-muted">manual</span>':'');
+      var fonte=esc(r.utm_source||'—')+(r.utm_medium?(' / '+esc(r.utm_medium)):'');
+      var cont=esc(r.utm_content||'—')+(r.utm_term?(' · '+esc(r.utm_term)):'');
+      return '<tr><td>'+contact+'</td><td>'+badge+'</td><td class="text-xs">'+fonte+'</td><td>'+esc(r.utm_campaign||'—')+'</td><td class="text-xs">'+cont+'</td><td>'+statusPill(r.status)+'</td><td>'+originSelectHtml(r)+'</td></tr>';
+    }).join('');
+    tb.querySelectorAll('select.origin-tag').forEach(function(s){ s.addEventListener('change', function(){ tagOrigin(parseInt(s.getAttribute('data-id'),10), s.value); }); });
+  }
+  function tagOrigin(id, origin){
+    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:'origin', origin:origin }) })
+      .then(function(r){ return r.json(); }).then(function(){ loadAttribution(); }).catch(function(){});
+  }
+  function loadAttribution(){
+    fetch(ATTR+'?'+qs()+'&origin='+encodeURIComponent(attrFilter)).then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
+    }).then(renderAttr).catch(function(){});
   }
 
-  function bindControls() {
-    document.querySelectorAll('#presets .seg-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        state.preset = btn.getAttribute('data-preset');
-        var r = presetRange(state.preset);
-        state.from = r.from; state.to = r.to;
-        applyState();
-        loadData();
-      });
-    });
+  // -------- mark modal --------
+  var pending=null;
+  function openMark(id, act){
+    pending={ id:id, act:act };
+    var titles={ qualified:'Marcar como Lead Qualificado', sale:'Registrar Venda', lost:'Marcar como Perdido' };
+    var texts={
+      qualified:'Confirma que esta conversa é um lead QUALIFICADO? Será enviado o evento QualifiedLead para a plataforma de origem.',
+      sale:'Confirma a VENDA desta conversa? Será enviado o evento Purchase (com valor) para a plataforma de origem.',
+      lost:'Marcar esta conversa como perdida? Nenhuma conversão é enviada.'
+    };
+    $('modal-title').textContent=titles[act]||'Confirmar';
+    $('modal-text').textContent=texts[act]||'';
+    $('modal-value-wrap').classList.toggle('hidden', act!=='sale');
+    $('modal-value').value=''; $('modal-error').classList.add('hidden');
+    $('modal').classList.remove('hidden'); if(act==='sale') $('modal-value').focus();
+  }
+  function closeMark(){ $('modal').classList.add('hidden'); pending=null; }
+  function submitMark(){
+    if(!pending) return;
+    var body={ conversation_id:pending.id, action:pending.act, confirm:true };
+    if(pending.act==='sale'){ var v=parseFloat($('modal-value').value);
+      if(!(v>0)){ var e=$('modal-error'); e.textContent='Informe um valor de venda válido.'; e.classList.remove('hidden'); return; } body.value=v; }
+    $('modal-ok').disabled=true;
+    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(res){ $('modal-ok').disabled=false;
+        if(!res.ok){ var e=$('modal-error'); e.textContent=res.j.error||'Falha ao marcar.'; e.classList.remove('hidden'); return; }
+        closeMark(); loadInbox(); loadReport();
+        if(res.j.fire && res.j.fire.fired===false && res.j.fire.reason){ showNotice('Marcado, mas a conversão não foi enviada: '+res.j.fire.reason); }
+      }).catch(function(){ $('modal-ok').disabled=false; var e=$('modal-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); });
+  }
 
-    $('apply').addEventListener('click', function () {
-      var f = $('date-from').value, t = $('date-to').value;
-      if (!f || !t) { return; }
-      if (f > t) { var tmp = f; f = t; t = tmp; }
-      state.from = f; state.to = t; state.preset = null;
-      applyState();
-      loadData();
-    });
+  // -------- controls --------
+  function applyState(){ $('date-from').value=state.from; $('date-to').value=state.to;
+    document.querySelectorAll('#presets .seg-btn').forEach(function(b){ b.classList.toggle('active', state.preset===b.getAttribute('data-preset')); }); }
 
+  function bind(){
+    document.querySelectorAll('#presets .seg-btn').forEach(function(btn){ btn.addEventListener('click', function(){
+      state.preset=btn.getAttribute('data-preset'); var r=presetRange(state.preset); state.from=r.from; state.to=r.to; applyState(); loadAll(); }); });
+    $('apply').addEventListener('click', function(){ var f=$('date-from').value, t=$('date-to').value; if(!f||!t) return;
+      if(f>t){ var tmp=f; f=t; t=tmp; } state.from=f; state.to=t; state.preset=null; applyState(); loadAll(); });
     $('gate-submit').addEventListener('click', submitGate);
-    $('gate-key').addEventListener('keydown', function (e) { if (e.key === 'Enter') { submitGate(); } });
+    $('gate-key').addEventListener('keydown', function(e){ if(e.key==='Enter') submitGate(); });
+    $('theme-toggle').addEventListener('click', function(){ applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); });
 
-    var maxDay = todayYmd();
-    $('date-from').max = maxDay;
-    $('date-to').max = maxDay;
+    document.querySelectorAll('.tab-btn').forEach(function(b){ b.addEventListener('click', function(){
+      tab=b.getAttribute('data-tab'); document.querySelectorAll('.tab-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
+      $('tab-resultados').classList.toggle('hidden', tab!=='resultados'); $('tab-whatsapp').classList.toggle('hidden', tab!=='whatsapp');
+      $('tab-atribuicao').classList.toggle('hidden', tab!=='atribuicao');
+      if(tab==='resultados' && lastReport) renderChart(lastReport.daily||[]);
+      if(tab==='atribuicao') loadAttribution(); }); });
+
+    $('origin-filter').addEventListener('change', function(){ attrFilter=$('origin-filter').value; loadAttribution(); });
+
+    document.querySelectorAll('#line-metric .seg-btn').forEach(function(b){ b.addEventListener('click', function(){
+      lineMetric=b.getAttribute('data-metric'); document.querySelectorAll('#line-metric .seg-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
+      if(lastReport) renderChart(lastReport.daily||[]); }); });
+
+    document.querySelectorAll('#inbox-filter .seg-btn').forEach(function(b){ b.addEventListener('click', function(){
+      inboxStatus=b.getAttribute('data-status'); document.querySelectorAll('#inbox-filter .seg-btn').forEach(function(x){ x.classList.toggle('active', x===b); }); loadInbox(); }); });
+
+    $('modal-cancel').addEventListener('click', closeMark);
+    $('modal').addEventListener('click', function(e){ if(e.target===$('modal')) closeMark(); });
+    $('modal-ok').addEventListener('click', submitMark);
+
+    var maxDay=todayYmd(); $('date-from').max=maxDay; $('date-to').max=maxDay;
   }
 
-  // ------------------------------------------------------------------ init
-  function init() {
-    bindControls();
-    var r = presetRange('7');
-    state.from = r.from; state.to = r.to; state.preset = '7';
-    applyState();
-
-    KEY = initialKey();
-    if (!KEY) { openGate(); return; }
-    $('app').classList.remove('hidden');
-    loadData();
+  function init(){
+    bind();
+    var r=presetRange('7'); state.from=r.from; state.to=r.to; state.preset='7'; applyState();
+    KEY=initialKey(); if(!KEY){ openGate(); return; }
+    $('app').classList.remove('hidden'); loadAll();
   }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
 </body>

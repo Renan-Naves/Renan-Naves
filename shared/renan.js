@@ -128,9 +128,40 @@
     var href = (a.getAttribute("href") || "").toLowerCase();
     return href.indexOf("api.whatsapp.com") !== -1 || href.indexOf("wa.me") !== -1;
   }
+
+  // ── Token de sessão no link do WhatsApp (atribuição Google/LP) ─────────────
+  // A LP não tem formulário: para ligar a conversa do WhatsApp de volta ao
+  // clique (gclid na sessão), embutimos um ref curto = 8 primeiros hex do
+  // _krob_sid no texto pré-preenchido. O webhook do uazapi extrai esse ref e
+  // resolve conversa → sessão → gclid. (Meta vem por CTWA/ctwa_clid e nem
+  // passa por aqui.) Best-effort: se o usuário apagar o texto, cai no fallback
+  // manual do dashboard.
+  function getCookie(name) {
+    var m = document.cookie.match("(?:^|; )" + name + "=([^;]*)");
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+  function sessionRef() {
+    var sid = getCookie("_krob_sid");
+    return sid ? sid.replace(/-/g, "").slice(0, 8) : "";
+  }
+  function addWaRef(a) {
+    try {
+      var ref = sessionRef();
+      if (!ref) return;
+      var raw = a.getAttribute("href") || "";
+      if (/ref:\s*[0-9a-f]{8}/i.test(raw)) return; // already tagged
+      var u = new URL(raw, location.href);
+      var text = u.searchParams.get("text") || "";
+      text += (text ? "\n\n" : "") + "(ref: " + ref + ")";
+      u.searchParams.set("text", text);
+      a.setAttribute("href", u.toString());
+    } catch (_) {}
+  }
+
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest("a[href]");
     if (!a || !isWhatsApp(a)) return;
+    addWaRef(a); // tag every WhatsApp click so the conversation maps to the session
     try {
       if (sessionStorage.getItem("_lead_fired")) return;
       sessionStorage.setItem("_lead_fired", "1");
