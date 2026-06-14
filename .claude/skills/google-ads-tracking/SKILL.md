@@ -135,12 +135,17 @@ for `productDestinationId` / the `GOOGLE_ADS_*_CONVERSION_ACTION_ID` env vars.
 that is NOT the conversion action id. (To be 100% sure, the Google Ads API exposes it as
 `conversion_action.id`.)
 
-### 5.4 (Optional) enhanced matching for these events
-QualifiedLead/Purchase from WhatsApp carry a **phone number**. You can send it hashed alongside the
-gclid for better matching: in Google Ads enable **Goals → Settings → "Enhanced conversions for
-leads"** and accept the Customer Match terms. The code already hashes + sends the phone
-(SHA-256 hex, E.164) when available; if the feature is off, Google simply ignores it (harmless). The
-**gclid stays the primary key** either way.
+### 5.4 (Optional) enhanced matching — usually SKIP for gclid/API
+During creation Google may push **"Enhanced conversions for leads"** (PT: *"Conversões otimizadas
+para leads"*). Its method dropdown only offers **Google tag** / **Google Tag Manager** — because
+that flow captures user data from an **on-site form via the tag**. With **no form + gclid/API**, that
+doesn't apply: **uncheck "Enable enhanced conversions for leads" and just Save** — gclid attribution
+stands on its own.
+
+If you later want phone-based enhanced matching: enable the feature *and accept the Customer Match
+terms* — the method for API-sent data is the **API itself** (not the tag dropdown). The worker
+already hashes + sends the phone (SHA-256 hex, E.164) alongside the gclid; it's ignored while the
+feature is off (harmless). **gclid stays the primary key either way.**
 
 ## 6. The request (worker code pattern)
 
