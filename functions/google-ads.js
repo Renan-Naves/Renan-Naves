@@ -70,7 +70,7 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
 // Stays silent unless the OAuth + account env vars are set and a gclid is given.
 // -------------------------------------------------------------------------
 export async function sendGoogleOfflineConversion({
-  env, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, phone,
+  env, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, phone, validateOnly,
 }) {
   const REQUIRED_OAUTH = [
     'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN',
@@ -101,6 +101,7 @@ export async function sendGoogleOfflineConversion({
     eventTime,
     transactionId,
     userIdentifiers,
+    validateOnly,
   });
 }
 
@@ -127,7 +128,7 @@ async function getAccessToken(env) {
 
 // Shared Data Manager ingest. `valueCents` is optional (Purchase only);
 // `userIdentifiers` is optional (hashed PII for enhanced matching).
-async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, userIdentifiers }) {
+async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, userIdentifiers, validateOnly }) {
   const operatingAccountId = String(env.GOOGLE_ADS_CUSTOMER_ID).replace(/\D/g, '');
   const loginAccountId = String(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).replace(/\D/g, '');
   const actionId = String(conversionActionId).replace(/\D/g, '');
@@ -161,7 +162,7 @@ async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueC
     // Tells Data Manager how the hashed userIdentifiers are encoded.
     ...(event.userData ? { encoding: 'HEX' } : {}),
     events: [event],
-    validateOnly: false,
+    validateOnly: !!validateOnly,
   };
 
   const payloadJson = JSON.stringify(payload);
