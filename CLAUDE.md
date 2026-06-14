@@ -21,7 +21,7 @@ Multi-page static site on Cloudflare Pages. Single domain, path-based routing.
 - `.claude/commands/` — slash commands (e.g. `/new-page`).
 - `docs/` — architecture and onboarding docs (shareable). Tracking flow: `docs/TRACKING.md`; ad-spend sync + `/dashboard`: `docs/ad-spend-sync.md`.
 - `functions/` — Cloudflare Pages Functions (the tracking stack — see `## Tracking`). `_middleware.js` runs on every page; `tracker.js` is `POST /tracker` (Meta CAPI + GA4 + Google Ads fan-out); `google-ads.js` is the Google Ads offline-conversion uploader (auto `Lead` by gclid, plus a general `sendGoogleOfflineConversion` for manual QualifiedLead/Purchase); `meta-conversions.js` fires manual Meta WhatsApp conversions (`business_messaging`, by `ctwa_clid`); `origins.js` is the canonical traffic-origin taxonomy + `resolveOrigin()`; `scripts/[[path]].js` is the first-party GA4 gtag proxy (`/scripts/gtag.js`); `api/*` are the dashboard endpoints (reads: `campaign-report`, `leads-inbox`, `utm-attribution`; writer: `mark-conversion`, which also tags manual origin via `action:'origin'`); `webhook/uazapi/[slug].js` is the (stub) WhatsApp inbound webhook.
-- `migrations/` — D1 schema, applied with `wrangler d1 migrations apply`. Numbered `0001`–`0021` (`0005` intentionally absent). `0018` `wa_conversations` (WhatsApp lead inbox), `0019` `conversion_fires` (manual-conversion audit), `0020` `google_keyword_stats` (Google keyword reporting stub), `0021` adds `manual_origin`/`utm_medium` to `wa_conversations` (UTM attribution).
+- `migrations/` — D1 schema, applied with `wrangler d1 migrations apply`. Numbered `0001`–`0021` (`0005` intentionally absent). `0018` `wa_conversations` (WhatsApp lead inbox), `0019` `conversion_fires` (manual-conversion audit), `0020` `google_keyword_stats` (Google keyword reporting), `0021` adds `manual_origin`/`utm_medium` to `wa_conversations` (UTM attribution).
 - `dash/` — the built-in tracking dashboard, served at `/dash/`. Auth via `?key=<DASH_KEY>`.
 - `dashboard/` — dual-platform results dashboard (Meta Ads + Google Ads: investment, CPL, clicks, LP view, WhatsApp conversas, top Meta ads, top Google keywords) **plus the WhatsApp/comercial structure** (lead inbox + manual QualifiedLead/Purchase marking). PT, dark/light theme, site palette + logo. Served at `/dashboard/`. Auth via `?key=<DASH_KEY>` (same key as `/dash`). See `## Tracking`.
 - `cron-worker/` — standalone Cloudflare Worker with an hourly cron trigger that calls `/api/sync/meta-ads`. Deployed on its own with `wrangler deploy` (Pages has no cron). See `cron-worker/README.md`.
@@ -87,8 +87,9 @@ captured by the uazapi webhook into `wa_conversations`, attributed by `ctwa_clid
 by `shared/renan.js` links the conversation back to the session — with a manual fallback). Attribution:
 Meta = `utm_source=meta-ads`/ctwa, Google = `utm_source=google-ads` (+ `utm_term` = keyword). Meta ad-cost
 from `ad_spend` refreshed hourly by `POST /api/sync/meta-ads` (cron); Google cost/keywords come from
-`POST /api/sync/google-ads` (**stub** — reporting needs the Google Ads API/GAQL with a dev token, separate
-from the Data Manager upload) and stay zeroed until wired. The report API is **infra-first / resilient**:
+`POST /api/sync/google-ads` (**implemented** GAQL pull — `googleAds:search` into `ad_spend` (platform='google')
++ `google_keyword_stats`; needs the Google Ads API with a dev token, separate from the Data Manager upload;
+**dormant until the reporting creds are set**, then zeroed cards fill). The report API is **infra-first / resilient**:
 `wa_conversations` + `google_keyword_stats` may be unmigrated/empty and the page still renders. Full
 ad-spend flow: `docs/ad-spend-sync.md`.
 
@@ -145,9 +146,11 @@ fire silently-skip if unset: `GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID`, `GOOGL
 conversions reuse `META_PIXEL_ID` + `META_ACCESS_TOKEN` (sent as `business_messaging` events keyed by `ctwa_clid`).
 **uazapi WhatsApp webhook** (`/webhook/uazapi/<slug>`, dormant until set): `UAZAPI_WEBHOOK_SECRET` (encrypt —
 also sent by uazapi as `x-uazapi-token` / `?token=`).
-**Google Ads spend/keyword reporting sync** (`/api/sync/google-ads`, stub — needs the Google Ads API/GAQL,
-NOT Data Manager): `GOOGLE_ADS_DEVELOPER_TOKEN` (encrypt), `GOOGLE_ADS_REPORTING_REFRESH_TOKEN` (encrypt —
-`https://www.googleapis.com/auth/adwords` scope); reuses the client id/secret + customer/login ids above.
+**Google Ads spend/keyword reporting sync** (`/api/sync/google-ads`, implemented GAQL pull — needs the Google
+Ads API, NOT Data Manager; self-skips until creds set): `GOOGLE_ADS_DEVELOPER_TOKEN` (encrypt),
+`GOOGLE_ADS_REPORTING_REFRESH_TOKEN` (encrypt — `https://www.googleapis.com/auth/adwords` scope); reuses the
+client id/secret + customer/login ids above. Optional `GOOGLE_ADS_API_VERSION` (default `v20`) — bump when
+Google sunsets it. Cron: set `SYNC_URL_GOOGLE` on `cron-worker/` to also sync Google hourly.
 **Meta-spend sync** (powers the `/dashboard` campaign view + `cron-worker/`, inactive until set):
 `SYNC_SECRET` (encrypt — also set as a secret on the cron Worker, see `cron-worker/README.md`),
 `META_ADS_ACCESS_TOKEN` (encrypt), `META_ADS_ACCOUNT_ID`.
