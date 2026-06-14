@@ -144,7 +144,7 @@ async function fireConversion({ env, conv, eventName, valueCents, now }) {
       : env.GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID;
     result = await sendGoogleOfflineConversion({
       env, conversionActionId, gclid, valueCents, currency: conv.sale_currency || 'BRL',
-      eventTime: now, transactionId: eventId,
+      eventTime: now, transactionId: eventId, phone: conv.wa_phone,
     });
   } else {
     clickId = conv.ctwa_clid; clickIdType = 'ctwa_clid';

@@ -70,7 +70,7 @@ export async function sendToGoogleAds({ body, sessionData, env }) {
 // Stays silent unless the OAuth + account env vars are set and a gclid is given.
 // -------------------------------------------------------------------------
 export async function sendGoogleOfflineConversion({
-  env, conversionActionId, gclid, valueCents, currency, eventTime, transactionId,
+  env, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, phone,
 }) {
   const REQUIRED_OAUTH = [
     'GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GOOGLE_ADS_REFRESH_TOKEN',
@@ -83,6 +83,14 @@ export async function sendGoogleOfflineConversion({
   const accessToken = await getAccessToken(env);
   if (!accessToken.ok) return { skipped: accessToken.reason };
 
+  // Enhanced matching (2026): include the hashed phone as an extra identifier
+  // alongside the gclid when available (manual WhatsApp marks carry a phone).
+  // gclid stays the primary key; this only helps if enhanced conversions for
+  // leads is enabled on the account — it's ignored otherwise, never harmful.
+  let userIdentifiers;
+  const hashedPhone = await sha256Hex(normalizePhoneE164(phone, env.DEFAULT_COUNTRY_CODE));
+  if (hashedPhone) userIdentifiers = [{ phoneNumber: hashedPhone }];
+
   return ingestEvent({
     env,
     accessToken: accessToken.token,
@@ -92,6 +100,7 @@ export async function sendGoogleOfflineConversion({
     currency,
     eventTime,
     transactionId,
+    userIdentifiers,
   });
 }
 
@@ -116,8 +125,9 @@ async function getAccessToken(env) {
   return { ok: true, token };
 }
 
-// Shared Data Manager ingest. `valueCents` is optional (Purchase only).
-async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueCents, currency, eventTime, transactionId }) {
+// Shared Data Manager ingest. `valueCents` is optional (Purchase only);
+// `userIdentifiers` is optional (hashed PII for enhanced matching).
+async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueCents, currency, eventTime, transactionId, userIdentifiers }) {
   const operatingAccountId = String(env.GOOGLE_ADS_CUSTOMER_ID).replace(/\D/g, '');
   const loginAccountId = String(env.GOOGLE_ADS_LOGIN_CUSTOMER_ID).replace(/\D/g, '');
   const actionId = String(conversionActionId).replace(/\D/g, '');
@@ -127,10 +137,19 @@ async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueC
     transactionId: transactionId || crypto.randomUUID(),
     eventSource: 'WEB',
     adIdentifiers: { gclid },
+    // Consent signals (Feb 2026): required for EEA, recommended everywhere.
+    // Configurable via env; defaults to GRANTED (typical for non-EEA / BR).
+    consent: {
+      adUserData: consentValue(env.GOOGLE_ADS_CONSENT_AD_USER_DATA),
+      adPersonalization: consentValue(env.GOOGLE_ADS_CONSENT_AD_PERSONALIZATION),
+    },
   };
   if (typeof valueCents === 'number' && valueCents > 0) {
     event.conversionValue = valueCents / 100;
     event.currency = currency || 'BRL';
+  }
+  if (userIdentifiers && userIdentifiers.length) {
+    event.userData = { userIdentifiers };
   }
 
   const payload = {
@@ -139,6 +158,8 @@ async function ingestEvent({ env, accessToken, conversionActionId, gclid, valueC
       loginAccount: { accountType: 'GOOGLE_ADS', accountId: loginAccountId },
       productDestinationId: actionId,
     }],
+    // Tells Data Manager how the hashed userIdentifiers are encoded.
+    ...(event.userData ? { encoding: 'HEX' } : {}),
     events: [event],
     validateOnly: false,
   };
@@ -179,4 +200,34 @@ function formatRfc3339(epochSeconds, offset) {
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T` +
     `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
   return `${stamp}${normalizedOffset}`;
+}
+
+// Map an env value to a valid Data Manager consent enum. Default GRANTED
+// (typical for non-EEA / Brazil). Set the env to DENIED/UNSPECIFIED to change.
+function consentValue(v) {
+  const s = String(v || '').trim().toUpperCase();
+  if (s === 'DENIED' || s === 'CONSENT_DENIED') return 'CONSENT_DENIED';
+  if (s === 'UNSPECIFIED' || s === 'CONSENT_UNSPECIFIED') return 'CONSENT_UNSPECIFIED';
+  return 'CONSENT_GRANTED';
+}
+
+// SHA-256 → lowercase hex (Data Manager `encoding: HEX`).
+async function sha256Hex(value) {
+  if (!value) return '';
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// E.164-ish phone for hashing: digits, prepend country code if missing.
+// (Google wants E.164, e.g. +5511999999999 → hash the string WITHOUT the '+'.)
+function normalizePhoneE164(ph, countryCode) {
+  if (!ph) return '';
+  const cc = String(countryCode || '55');
+  const digits = String(ph).replace(/\D/g, '').replace(/^0+/, '');
+  if (!digits) return '';
+  let full = digits;
+  if (!(digits.startsWith(cc) && digits.length >= cc.length + 8)) {
+    if (digits.length >= 8 && digits.length <= 11) full = cc + digits;
+  }
+  return '+' + full;
 }
