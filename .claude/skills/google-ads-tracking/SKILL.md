@@ -96,20 +96,21 @@ way, category = Lead).
 
 ### 5.1 QualifiedLead
 1. Google Ads → **Goals → Conversions → Summary → "+ New conversion action"**.
-2. Conversion source: **"Import"** → **"CRMs, files, or other data sources"** →
-   **"Track conversions from clicks"** (this is the gclid/offline path; `transaction_id` is then
-   *optional* — we send one anyway for dedup). *(If you instead pick "Website", `transaction_id`
-   becomes mandatory — we already send it, so either works; Import is the natural choice for gclid.)*
-3. **Goal / category:** choose **"Qualified lead"**. *(Why: lets Smart Bidding optimize toward
+2. On the **"Choose data sources"** screen pick the **"Offline conversions"** box
+   (PT: *"Conversões off-line"* — "connecting data to a CRM, importing a file, or using the Google
+   Ads API"). **NOT** "Website / Conversões em um site" (that one wants a page tag). Continue.
+3. In the offline flow: **Import → "Other data sources or CRMs" → "Track conversions from clicks"**
+   (the gclid path; `transaction_id` is optional — we send one anyway for dedup) → Continue.
+4. **Goal / category:** choose **"Qualified lead"**. *(Why: lets Smart Bidding optimize toward
    qualified leads specifically.)*
-4. **Name:** something stable, e.g. `WhatsApp - Qualified Lead`.
-5. **Value:** "Don't use a value" (a qualified lead usually has no monetary value) — or a fixed proxy
+5. **Name:** something stable, e.g. `WhatsApp - Qualified Lead`.
+6. **Value:** "Don't use a value" (a qualified lead usually has no monetary value) — or a fixed proxy
    value if you bid on it.
-6. **Count:** **"One"** (one qualification per lead).
-7. **Click-through conversion window:** set to **90 days** (offline qualification often happens days
+7. **Count:** **"One"** (one qualification per lead).
+8. **Click-through conversion window:** set to **90 days** (offline qualification often happens days
    after the click; the default 30d would drop late ones).
-8. Save. Then open the action again and copy its **`ctId`** (see 5.3) →
-   `GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID`.
+9. Save. Then open the action again and copy its **`ctId`** (see 5.3) →
+   `GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID`. **Wait 4–6 h before the first upload.**
 
 ### 5.2 Purchase
 Repeat 5.1 with these differences:
