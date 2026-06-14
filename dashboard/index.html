@@ -100,6 +100,10 @@
   .notice{ display:flex; gap:.6rem; align-items:flex-start; background:color-mix(in srgb,var(--google) 12%,var(--card)); border:1px solid color-mix(in srgb,var(--google) 35%,transparent); color:var(--text); border-radius:12px; padding:.8rem 1rem; font-size:.82rem; }
   .modal-bg{ position:fixed; inset:0; background:rgba(6,24,23,.55); backdrop-filter:blur(2px); z-index:70; display:flex; align-items:center; justify-content:center; padding:1rem; }
   .hidden{ display:none!important; }
+  /* logo swaps to a white-text variant in dark mode (gray "NAVES"+subtitle vanish on dark) */
+  .logo-dark{ display:none; }
+  [data-theme="dark"] .logo-light{ display:none; }
+  [data-theme="dark"] .logo-dark{ display:inline-block; }
 </style>
 </head>
 <body>
@@ -109,7 +113,8 @@
 <div id="gate" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4" style="background:var(--bg)">
   <div class="card w-full max-w-sm p-7 fade-in">
     <div class="flex items-center gap-3 mb-5">
-      <img src="/images/logo.webp" alt="Dr. Renan Naves" style="height:38px;width:auto">
+      <img src="/images/logo.webp" alt="Dr. Renan Naves" class="logo-light" style="height:38px;width:auto">
+      <img src="/images/logo-dark.webp" alt="Dr. Renan Naves" class="logo-dark" style="height:38px;width:auto">
     </div>
     <div class="font-semibold head mb-1">Painel de Resultados</div>
     <div class="text-xs mb-4" style="color:var(--muted)">Acesso restrito</div>
@@ -126,7 +131,8 @@
   <header class="border-b" style="border-color:var(--border);background:var(--card)">
     <div class="max-w-6xl mx-auto px-5 py-3 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <img src="/images/logo.webp" alt="Dr. Renan Naves" style="height:34px;width:auto">
+        <img src="/images/logo.webp" alt="Dr. Renan Naves" class="logo-light" style="height:34px;width:auto">
+        <img src="/images/logo-dark.webp" alt="Dr. Renan Naves" class="logo-dark" style="height:34px;width:auto">
         <div class="hidden sm:block" style="border-left:1px solid var(--border);height:30px"></div>
         <div class="hidden sm:block">
           <div class="font-semibold head leading-tight">Painel de Resultados</div>

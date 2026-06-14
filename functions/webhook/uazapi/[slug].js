@@ -37,7 +37,12 @@ export async function onRequestPost(context) {
 
   const msg = normalise(payload);
   if (!msg || !msg.chatId) {
+    // connection / qrcode / status events (no chat) land here harmlessly
     return json({ ok: true, skipped: true, reason: 'no inbound message in payload' });
+  }
+  // only inbound leads: never let our own outgoing replies create/overwrite a row
+  if (msg.fromMe) {
+    return json({ ok: true, skipped: true, reason: 'outgoing message (fromMe)' });
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -72,23 +77,33 @@ export async function onRequestPost(context) {
   return json({ ok: true, chat_id: msg.chatId, platform: resolved.platform, link_method: resolved.linkMethod });
 }
 
-// Map uazapi's payload to our internal shape. CONFIRM field paths with a real
-// sample — kept permissive (tries several common shapes) so a wiring mistake
+// Map uazapi's payload to our internal shape. Tuned for the uazapi (uazapiGO v2)
+// "messages" event — that shape uses an all-lowercase `message` object with
+// `chatid` / `sender` / `senderName` / `text` / `fromMe` / `messageType`, and the
+// webhook envelope carries `EventType`. The reads below stay permissive (older
+// camelCase / Baileys `key.remoteJid` shapes still resolve) so a wiring mistake
 // degrades to 'unresolved' instead of dropping the message.
+// CONFIRM the exact paths against a REAL captured payload before go-live — in
+// particular the click-to-WhatsApp ad `referral`/ctwa_clid path, which varies.
 function normalise(p) {
   const m = p.message || p.data || p.messages?.[0] || p;
   if (!m) return null;
-  const chatId = m.chatId || m.chat_id || m.from || m.key?.remoteJid || p.chatId || '';
-  const text = m.text || m.body || m.message?.conversation
+  // uazapi v2 uses lowercase `chatid`; keep camelCase + Baileys fallbacks too
+  const chatId = m.chatid || m.chatId || m.chat_id || m.from || m.key?.remoteJid || p.chatId || '';
+  const text = m.text || m.content || m.body || m.caption || m.message?.conversation
     || m.message?.extendedTextMessage?.text || '';
   const phone = String(m.sender || m.from || m.author || chatId || '').replace(/[^0-9]/g, '');
   const name = m.senderName || m.pushName || m.notifyName || m.contact?.name || '';
-  const referral = m.referral || m.message?.referral || m.contextInfo?.externalAdReply || null;
+  // skip our own / API-sent messages (uazapi: fromMe, wasSentByApi)
+  const fromMe = !!(m.fromMe || m.fromme || m.wasSentByApi || m.key?.fromMe);
+  const referral = m.referral || m.message?.referral
+    || m.contextInfo?.externalAdReply || m.message?.contextInfo?.externalAdReply || null;
   return {
     chatId,
     text: String(text || ''),
     phone,
     name,
+    fromMe,
     referral,
     referralRaw: referral ? JSON.stringify(referral) : null,
   };

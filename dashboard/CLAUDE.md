@@ -70,3 +70,6 @@ URL: `/dashboard/`
 - 2026-06-14 — redesign dual-platform (Meta+Google) + estrutura de WhatsApp/comercial
   (lista de leads, marcação manual de qualificado/venda com disparo à origem), tema
   claro/escuro, paleta + logo do site.
+- 2026-06-14 — logo do modo escuro: variante `images/logo-dark.webp` (parte cinza
+  "NAVES"+subtítulo recolorida p/ branco, "RENAN" segue ciano), troca via CSS
+  (`.logo-light`/`.logo-dark` sob `[data-theme="dark"]`) pra ficar legível no fundo escuro.
