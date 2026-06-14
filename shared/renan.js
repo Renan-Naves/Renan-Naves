@@ -94,32 +94,48 @@
     } catch (_) {}
   }
 
-  // ── Meta Pixel (base code) ───────────────────────────────────────────────
+  // Perf: definimos os STUBS (fbq + gtag) imediatamente, mas adiamos o
+  // download/execução das libs pesadas (fbevents.js + gtag.js) para quando a
+  // thread principal estiver ociosa (requestIdleCallback). Isso reduz TBT/TTI
+  // sem perder evento: o PageView/Lead server-side (/tracker, CAPI) dispara na
+  // hora, e as chamadas de pixel/gtag ficam na fila e disparam quando as libs
+  // entram (mesmo que o usuário clique no WhatsApp antes — o link abre em nova
+  // aba e a página não descarrega).
+
+  // ── Meta Pixel — só o stub (fbq + fila), SEM injetar o fbevents.js ainda ────
   !function (f, b, e, v, n, t, s) {
     if (f.fbq) return; n = f.fbq = function () {
       n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
     }; if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0";
-    n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
-    s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
-  }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    n.queue = [];
+  }(window, document);
   fbq("init", META_PIXEL_ID);
 
-  // ── GA4 (script first-party via proxy /scripts/gtag.js → googletagmanager) ─
-  var ga = document.createElement("script");
-  ga.async = true;
-  ga.src = "/scripts/gtag.js?id=" + GA4_ID;
-  document.head.appendChild(ga);
+  // ── GA4 — stub gtag/dataLayer já (pushes baratos); o gtag.js carrega depois ─
   window.dataLayer = window.dataLayer || [];
   function gtag() { dataLayer.push(arguments); }
   window.gtag = gtag;
   gtag("js", new Date());
   gtag("config", GA4_ID);
 
-  // ── PageView (pixel + CAPI, deduped por event_id) ──────────────────────────
+  // ── PageView (pixel enfileirado + CAPI imediato, deduped por event_id) ──────
   // /tracker NÃO loga PageView no D1 — só relaya pro Meta CAPI.
   var pvId = uuid();
   try { fbq("track", "PageView", {}, { eventID: pvId }); } catch (_) {}
   track("PageView", pvId, {});
+
+  // ── Carrega as libs de terceiros quando ocioso (libera a main thread) ──────
+  function loadTrackerLibs() {
+    if (window._trkLibs) return; window._trkLibs = 1;
+    var fb = document.createElement("script");
+    fb.async = true; fb.src = "https://connect.facebook.net/en_US/fbevents.js";
+    document.head.appendChild(fb);
+    var ga = document.createElement("script");
+    ga.async = true; ga.src = "/scripts/gtag.js?id=" + GA4_ID;
+    document.head.appendChild(ga);
+  }
+  if ("requestIdleCallback" in window) requestIdleCallback(loadTrackerLibs, { timeout: 3000 });
+  else setTimeout(loadTrackerLibs, 1500);
 
   // ── Lead = primeiro clique em WhatsApp por sessão ──────────────────────────
   // Guard em sessionStorage evita inflar a contagem de Lead / o CPL quando o
