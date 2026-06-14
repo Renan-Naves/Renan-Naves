@@ -9,7 +9,7 @@
 #
 # Deploy steps: see cron-worker/README.md
 
-name = "krob-meta-ads-cron"
+name = "renan-naves-ads-cron"
 main = "index.js"
 compatibility_date = "2025-03-01"
 
@@ -18,8 +18,11 @@ compatibility_date = "2025-03-01"
 crons = ["0 * * * *"]
 
 [vars]
-# Full URL of the Pages sync endpoint (the encontro-krobcode-3 Pages project).
-SYNC_URL = "https://encontro-krobcode-3.pages.dev/api/sync/meta-ads"
+# Full URLs of the Pages sync endpoints (the renan-naves Pages project, served
+# on the custom domain). Both endpoints self-skip until their ad-platform creds
+# are set, so it's safe to point at them before those exist.
+SYNC_URL = "https://drrenannaves.com.br/api/sync/meta-ads"
+SYNC_URL_GOOGLE = "https://drrenannaves.com.br/api/sync/google-ads"
 
 # SYNC_SECRET is intentionally NOT here — it is a Worker secret:
 #   npx wrangler@latest secret put SYNC_SECRET
