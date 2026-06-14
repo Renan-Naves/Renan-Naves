@@ -99,8 +99,10 @@ way, category = Lead).
 2. On the **"Choose data sources"** screen pick the **"Offline conversions"** box
    (PT: *"Conversões off-line"* — "connecting data to a CRM, importing a file, or using the Google
    Ads API"). **NOT** "Website / Conversões em um site" (that one wants a page tag). Continue.
-3. In the offline flow: **Import → "Other data sources or CRMs" → "Track conversions from clicks"**
-   (the gclid path; `transaction_id` is optional — we send one anyway for dedup) → Continue.
+3. In the offline flow choose **"Other data sources or CRMs"** → **"Manual import using the API or
+   uploads"** (PT: *"Importação manual usando API ou uploads"*) — do **NOT** pick a CRM connector and
+   do **NOT** use "Edit data sources" (those are for connected feeds; we push by gclid via the API).
+   It's the click/gclid path; `transaction_id` is optional (we send one anyway). → Continue.
 4. **Goal / category:** choose **"Qualified lead"**. *(Why: lets Smart Bidding optimize toward
    qualified leads specifically.)*
 5. **Name:** something stable, e.g. `WhatsApp - Qualified Lead`.
