@@ -9,7 +9,7 @@
 // wa_conversations (one per chat) and RESOLVES attribution with the hybrid model:
 //   1. Meta CTWA  → the message carries a `referral` object with `ctwa_clid`
 //                   (+ source_id / ad name). platform='meta', link_method='ctwa'.
-//   2. Google/LP  → the first message text carries our "(ref: XXXXXXXX)" token
+//   2. Google/LP  → the first message text carries our "#xxxxxxxx" token (legacy: "(ref: xxxxxxxx)")
 //                   (set by shared/renan.js). We look up the matching session,
 //                   pull gclid/fbc/utms. platform='google' (or by utm_source),
 //                   link_method='token'.
@@ -126,8 +126,8 @@ async function resolveAttribution(env, msg) {
     };
   }
 
-  // 2) Google/LP token "(ref: XXXXXXXX)"
-  const m = /ref:\s*([0-9a-fA-F]{8})/.exec(msg.text || '');
+  // 2) Google/LP token: current "#xxxxxxxx" or legacy "(ref: xxxxxxxx)"
+  const m = /(?:ref:\s*|#)([0-9a-fA-F]{8})/.exec(msg.text || '');
   if (m && env.DB) {
     const prefix = m[1].toLowerCase();
     try {

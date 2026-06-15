@@ -83,7 +83,7 @@ It reads D1 via `GET /api/campaign-report` + `GET /api/leads-inbox` + `GET /api/
 `business_messaging` by `ctwa_clid`, or Google Ads Data Manager by `gclid`; audited in `conversion_fires`).
 **Conversion model is asymmetric:** Meta runs **CTWA** (ad → WhatsApp direct, skips the LP; conversation
 captured by the uazapi webhook into `wa_conversations`, attributed by `ctwa_clid`); Google runs through the
-**LP** (`utm_source=google-ads`, `gclid` on the session; a `(ref: XXXXXXXX)` token in the WhatsApp text set
+**LP** (`utm_source=google-ads`, `gclid` on the session; a `#xxxxxxxx` token in the WhatsApp text set
 by `shared/renan.js` links the conversation back to the session — with a manual fallback). Attribution:
 Meta = `utm_source=meta-ads`/ctwa, Google = `utm_source=google-ads` (+ `utm_term` = keyword). Meta ad-cost
 from `ad_spend` refreshed hourly by `POST /api/sync/meta-ads` (cron); Google cost/keywords come from

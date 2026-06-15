@@ -148,7 +148,8 @@
   // ── Token de sessão no link do WhatsApp (atribuição Google/LP) ─────────────
   // A LP não tem formulário: para ligar a conversa do WhatsApp de volta ao
   // clique (gclid na sessão), embutimos um ref curto = 8 primeiros hex do
-  // _krob_sid no texto pré-preenchido. O webhook do uazapi extrai esse ref e
+  // _krob_sid no texto pré-preenchido, no fim e discreto (`#xxxxxxxx`, parece
+  // um nº de protocolo). O webhook do uazapi extrai esse ref e
   // resolve conversa → sessão → gclid. (Meta vem por CTWA/ctwa_clid e nem
   // passa por aqui.) Best-effort: se o usuário apagar o texto, cai no fallback
   // manual do dashboard.
@@ -165,10 +166,10 @@
       var ref = sessionRef();
       if (!ref) return;
       var raw = a.getAttribute("href") || "";
-      if (/ref:\s*[0-9a-f]{8}/i.test(raw)) return; // already tagged
+      if (/(?:ref:\s*|#)[0-9a-f]{8}/i.test(raw)) return; // already tagged
       var u = new URL(raw, location.href);
       var text = u.searchParams.get("text") || "";
-      text += (text ? "\n\n" : "") + "(ref: " + ref + ")";
+      text += (text ? " " : "") + "#" + ref;
       u.searchParams.set("text", text);
       a.setAttribute("href", u.toString());
     } catch (_) {}

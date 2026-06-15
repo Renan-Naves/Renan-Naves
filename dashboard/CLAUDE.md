@@ -18,7 +18,7 @@ URL: `/dashboard/`
   `wa_conversations` (platform='meta') via webhook do uazapi, identificada por `ctwa_clid`.
 - **Google = LP**: o anúncio cai na LP (`utm_source=google-ads`), o visitante clica no
   WhatsApp → evento `Lead` no `event_log`. O `gclid` é capturado na sessão; um token
-  `(ref: XXXXXXXX)` no texto do WhatsApp (set por `shared/renan.js`) liga a conversa à sessão.
+  `#xxxxxxxx` no texto do WhatsApp (set por `shared/renan.js`; aceita o legado `(ref: xxxxxxxx)`) liga a conversa à sessão.
 - **Qualificado / Venda são MANUAIS**: a atendente marca na lista. Ao marcar, dispara a
   conversão de volta à plataforma de origem — Meta CAPI (`business_messaging`, ctwa_clid) ou
   Google Ads (Data Manager, gclid). QualifiedLead pede confirmação; Venda pede valor.
