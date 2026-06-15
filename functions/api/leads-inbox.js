@@ -19,12 +19,15 @@ export async function onRequestGet(context) {
   }
 
   const status = url.searchParams.get('status') || '';
+  const archived = url.searchParams.get('archived') === '1';
   const limit = clampInt(url.searchParams.get('limit'), 100, 1, 500);
   const { from, to } = resolveRange(url.searchParams.get('from'), url.searchParams.get('to'));
   const fromTs = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000);
   const toTs = Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000);
 
-  const wheres = ['created_at >= ? AND created_at <= ?'];
+  // soft-deleted leads never show; archived ones only in the "Arquivados" folder
+  const wheres = ['created_at >= ? AND created_at <= ?', 'deleted_at IS NULL',
+    archived ? 'archived_at IS NOT NULL' : 'archived_at IS NULL'];
   const binds = [fromTs, toTs];
   if (status && ['new', 'qualified', 'sale', 'lost'].includes(status)) {
     wheres.push('status = ?');
@@ -36,7 +39,8 @@ export async function onRequestGet(context) {
       SELECT id, wa_phone, wa_contact_name, platform, link_method,
              ctwa_clid, session_id, gclid, utm_source, utm_campaign, utm_content, utm_term,
              status, is_qualified, sale_value_cents, sale_currency,
-             first_message_at, qualified_at, sale_at, created_at
+             first_message_at, qualified_at, sale_at, created_at,
+             last_inbound_at, last_outbound_at, last_viewed_at, archived_at
       FROM wa_conversations
       WHERE ${wheres.join(' AND ')}
       ORDER BY created_at DESC
@@ -61,6 +65,11 @@ export async function onRequestGet(context) {
       created_at: r.created_at,
       qualified_at: r.qualified_at,
       sale_at: r.sale_at,
+      // atendimento dot: red=unread, yellow=read-not-replied, green=awaiting lead
+      dot: dotFor(r),
+      last_inbound_at: r.last_inbound_at,
+      last_outbound_at: r.last_outbound_at,
+      archived: !!r.archived_at,
     }));
 
     return json({ from, to, count: list.length, leads: list });
@@ -68,6 +77,20 @@ export async function onRequestGet(context) {
     // table not migrated yet → empty inbox, not an error
     return json({ from, to, count: 0, leads: [], pending_migration: true });
   }
+}
+
+// Atendimento dot from the conversation timestamps:
+//   red    — unread inbound (lead messaged after we last viewed the chat)
+//   yellow — viewed, but the lead's last message is still unanswered
+//   green  — we replied last (awaiting the lead) / nothing pending
+function dotFor(r) {
+  const inAt = r.last_inbound_at || 0;
+  const outAt = r.last_outbound_at || 0;
+  const viewed = r.last_viewed_at || 0;
+  if (!inAt && !outAt) return 'none';
+  if (inAt > viewed) return 'red';
+  if (inAt > outAt) return 'yellow';
+  return 'green';
 }
 
 function maskPhone(p) {

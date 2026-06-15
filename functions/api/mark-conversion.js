@@ -21,7 +21,7 @@ import { sendGoogleOfflineConversion } from '../google-ads.js';
 import { sendMetaMessagingConversion } from '../meta-conversions.js';
 import { isValidOrigin } from '../origins.js';
 
-const ACTIONS = ['qualified', 'sale', 'lost', 'reset', 'origin'];
+const ACTIONS = ['qualified', 'sale', 'lost', 'reset', 'origin', 'archive', 'unarchive', 'delete'];
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -54,6 +54,27 @@ export async function onRequestPost(context) {
       return json({ error: 'wa_conversations not migrated yet' }, 503);
     }
     return json({ ok: true, conversation_id: conversationId, manual_origin: origin || null });
+  }
+
+  // --- lifecycle: archive / unarchive / soft-delete ---
+  // No funnel change, no conversion fire — just sets/clears archived_at / deleted_at.
+  // 'delete' is a SOFT delete (attribution + audit preserved) and requires confirm:true.
+  if (action === 'archive' || action === 'unarchive' || action === 'delete') {
+    if (action === 'delete' && body.confirm !== true) {
+      return json({ error: 'confirmation required (confirm:true)' }, 400);
+    }
+    const nowTs = Math.floor(Date.now() / 1000);
+    const col = action === 'delete' ? 'deleted_at' : 'archived_at';
+    const val = action === 'unarchive' ? null : nowTs;
+    try {
+      const res = await env.DB.prepare(
+        `UPDATE wa_conversations SET ${col} = ?, updated_at = ? WHERE id = ?`
+      ).bind(val, nowTs, conversationId).run();
+      if (!res.meta || res.meta.changes === 0) return json({ error: 'conversation not found' }, 404);
+    } catch (_) {
+      return json({ error: 'wa_conversations not migrated yet (apply migration 0023)' }, 503);
+    }
+    return json({ ok: true, conversation_id: conversationId, action });
   }
 
   if ((action === 'qualified' || action === 'sale') && body.confirm !== true) {

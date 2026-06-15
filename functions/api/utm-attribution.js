@@ -24,6 +24,7 @@ export async function onRequestGet(context) {
   const fromTs = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000);
   const toTs = Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000);
   const originFilter = url.searchParams.get('origin') || '';
+  const archived = url.searchParams.get('archived') === '1';
 
   let results;
   try {
@@ -32,12 +33,15 @@ export async function onRequestGet(context) {
              w.ctwa_clid, w.gclid, w.session_id, w.manual_origin,
              w.utm_source, w.utm_medium, w.utm_campaign, w.utm_content, w.utm_term,
              w.status, w.is_qualified, w.sale_value_cents, w.sale_currency, w.created_at,
+             w.archived_at,
              s.referrer AS s_referrer, s.utm_medium AS s_utm_medium, s.utm_source AS s_utm_source,
              s.utm_campaign AS s_utm_campaign, s.utm_content AS s_utm_content, s.utm_term AS s_utm_term,
              s.gclid AS s_gclid
       FROM wa_conversations w
       LEFT JOIN sessions s ON w.session_id = s.session_id
       WHERE w.created_at >= ? AND w.created_at <= ?
+        AND w.deleted_at IS NULL
+        AND w.archived_at IS ${archived ? 'NOT NULL' : 'NULL'}
       ORDER BY w.created_at DESC
     `).bind(fromTs, toTs).all();
     results = r.results || [];
@@ -71,6 +75,7 @@ export async function onRequestGet(context) {
       is_qualified: !!r.is_qualified,
       sale_value: r.sale_value_cents != null ? r.sale_value_cents / 100 : null,
       created_at: r.created_at,
+      archived: !!r.archived_at,
     };
   });
 

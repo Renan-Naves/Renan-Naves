@@ -26,8 +26,15 @@
 //
 // Auth: ?key=<DASH_KEY>, same as the other /api/* dashboard endpoints.
 
+import { resolveOrigin } from '../origins.js';
+
 const META_SOURCE = 'meta-ads';
 const GOOGLE_SOURCE = 'google-ads';
+
+// Canonical origins that count as PAID traffic for the revenue split / ROAS.
+// Everything else (organico-site, google-meu-negocio, instagram-bio, tiktok-bio,
+// indicacao, remarketing, outro) counts as organic.
+const TRAFFIC_ORIGINS = new Set([GOOGLE_SOURCE, META_SOURCE]);
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -108,24 +115,33 @@ export async function onRequestGet(context) {
     ]);
 
     // --- wa_conversations + google_keyword_stats (may be unmigrated → default) ---
+    // `deleted_at IS NULL` keeps soft-deleted conversations out of every metric;
+    // archived ones DO still count (a sale filed away is still revenue).
     const metaLeads = await safeFirst(db,
-      `SELECT COUNT(*) AS n FROM wa_conversations WHERE platform='meta' AND created_at >= ? AND created_at <= ?`,
+      `SELECT COUNT(*) AS n FROM wa_conversations WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ?`,
       [fromTs, toTs], { n: 0 });
     const metaLeadsDaily = await safeAll(db,
       `SELECT date(created_at,'unixepoch') AS date, COUNT(*) AS n FROM wa_conversations
-       WHERE platform='meta' AND created_at >= ? AND created_at <= ? GROUP BY date(created_at,'unixepoch')`,
+       WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ? GROUP BY date(created_at,'unixepoch')`,
       [fromTs, toTs], []);
     const funnelRow = await safeFirst(db,
       `SELECT COUNT(*) AS leads,
               COALESCE(SUM(is_qualified),0) AS qualified,
               COALESCE(SUM(CASE WHEN status='sale' THEN 1 ELSE 0 END),0) AS sales,
               COALESCE(SUM(CASE WHEN status='sale' THEN sale_value_cents ELSE 0 END),0) AS revenue_cents
-       FROM wa_conversations WHERE created_at >= ? AND created_at <= ?`,
+       FROM wa_conversations WHERE deleted_at IS NULL AND created_at >= ? AND created_at <= ?`,
       [fromTs, toTs], { leads: 0, qualified: 0, sales: 0, revenue_cents: 0 });
     const metaLeadsByAd = await safeAll(db,
       `SELECT COALESCE(NULLIF(TRIM(utm_content),''),'') AS name, COUNT(*) AS leads
-       FROM wa_conversations WHERE platform='meta' AND created_at >= ? AND created_at <= ?
+       FROM wa_conversations WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ?
        GROUP BY LOWER(TRIM(utm_content))`,
+      [fromTs, toTs], []);
+    // sales rows (with the fields resolveOrigin needs) → revenue split traffic vs organic
+    const saleRows = await safeAll(db,
+      `SELECT w.sale_value_cents, w.manual_origin, w.utm_source, w.gclid, w.ctwa_clid,
+              s.referrer AS s_referrer, s.utm_source AS s_utm_source, s.gclid AS s_gclid
+       FROM wa_conversations w LEFT JOIN sessions s ON w.session_id = s.session_id
+       WHERE w.status='sale' AND w.deleted_at IS NULL AND w.created_at >= ? AND w.created_at <= ?`,
       [fromTs, toTs], []);
     const googleKeywordsSynced = await safeAll(db,
       `SELECT keyword, SUM(clicks) AS clicks, SUM(conversions) AS conversions, SUM(spend_cents) AS cents
@@ -140,6 +156,21 @@ export async function onRequestGet(context) {
     const totalsSpend = meta.spend + google.spend;
     const totalsLeads = meta.leads + google.leads;
 
+    // --- revenue split (traffic = paid origins, organic = the rest) + ROAS ---
+    let revTraffic = 0, revOrganic = 0;
+    for (const r of saleRows) {
+      const utm_source = r.utm_source || r.s_utm_source || '';
+      const origin = resolveOrigin({
+        manual_origin: r.manual_origin, utm_source, gclid: r.gclid || r.s_gclid,
+        ctwa_clid: r.ctwa_clid, referrer: r.s_referrer,
+      });
+      const val = num(r.sale_value_cents) / 100;
+      if (TRAFFIC_ORIGINS.has(origin)) revTraffic += val; else revOrganic += val;
+    }
+    const revenueTotal = num(funnelRow.revenue_cents) / 100;
+    const roas = totalsSpend > 0 ? revTraffic / totalsSpend : null;
+    const profitTraffic = revTraffic - totalsSpend; // lucro do tráfego (receita − investimento)
+
     return json({
       from, to,
       currency: metaSpend?.currency || googleSpend?.currency || 'BRL',
@@ -152,6 +183,13 @@ export async function onRequestGet(context) {
         leads: totalsLeads,
         cpl: totalsLeads > 0 ? totalsSpend / totalsLeads : null,
       },
+      revenue: {
+        total: revenueTotal,
+        traffic: revTraffic,
+        organic: revOrganic,
+      },
+      roas,                       // receita do tráfego ÷ investimento (ratio, ex 4.2)
+      profit_traffic: profitTraffic, // receita do tráfego − investimento (lucro em R$)
       lp_view: num(lpViewTotal?.n),
       lp_view_google: num(lpViewGoogle?.n),
       daily: buildDaily(from, to, {

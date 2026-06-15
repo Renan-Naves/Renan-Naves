@@ -40,21 +40,36 @@ export async function onRequestPost(context) {
     // connection / qrcode / status events (no chat) land here harmlessly
     return json({ ok: true, skipped: true, reason: 'no inbound message in payload' });
   }
-  // only inbound leads: never let our own outgoing replies create/overwrite a row
-  if (msg.fromMe) {
-    return json({ ok: true, skipped: true, reason: 'outgoing message (fromMe)' });
-  }
 
   const now = Math.floor(Date.now() / 1000);
+  const msgAt = msg.msgAt || now;
+
+  // Outgoing messages (a reply sent FROM the phone, fromMe): never let them
+  // create or re-attribute a conversation — but record them so the CRM thread
+  // stays complete and last_outbound_at is accurate.
+  if (msg.fromMe) {
+    try {
+      const conv = await env.DB.prepare('SELECT id FROM wa_conversations WHERE wa_chat_id = ?')
+        .bind(msg.chatId).first();
+      if (conv) {
+        await insertMessage(env, { conversationId: conv.id, chatId: msg.chatId, messageId: msg.messageId, direction: 'out', body: msg.text, senderName: msg.name, msgAt, now });
+        await env.DB.prepare('UPDATE wa_conversations SET last_outbound_at = ?, updated_at = ? WHERE id = ?')
+          .bind(msgAt, now, conv.id).run();
+      }
+    } catch (_) { /* best-effort: thread completeness must not 500 the webhook */ }
+    return json({ ok: true, chat_id: msg.chatId, recorded: 'outbound' });
+  }
+
   const resolved = await resolveAttribution(env, msg);
 
+  let conversationId = null;
   try {
     await env.DB.prepare(`
       INSERT INTO wa_conversations
         (wa_phone, wa_contact_name, wa_chat_id, first_message, platform, link_method,
          ctwa_clid, session_id, gclid, fbc, fbp, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-         referral_raw, status, first_message_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)
+         referral_raw, status, first_message_at, last_inbound_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?)
       ON CONFLICT(wa_chat_id) DO UPDATE SET
         wa_contact_name = COALESCE(excluded.wa_contact_name, wa_conversations.wa_contact_name),
         -- only fill attribution if we didn't have it yet (first touch wins)
@@ -63,18 +78,44 @@ export async function onRequestPost(context) {
         ctwa_clid   = COALESCE(wa_conversations.ctwa_clid, excluded.ctwa_clid),
         session_id  = COALESCE(wa_conversations.session_id, excluded.session_id),
         gclid       = COALESCE(wa_conversations.gclid, excluded.gclid),
+        last_inbound_at = excluded.last_inbound_at,
         updated_at  = excluded.updated_at
     `).bind(
       resolved.phone, resolved.name, msg.chatId, msg.text, resolved.platform, resolved.linkMethod,
       resolved.ctwaClid, resolved.sessionId, resolved.gclid, resolved.fbc, resolved.fbp,
       resolved.utmSource, resolved.utmMedium, resolved.utmCampaign, resolved.utmContent, resolved.utmTerm,
-      msg.referralRaw, now, now, now,
+      msg.referralRaw, msgAt, msgAt, now, now,
     ).run();
+    const conv = await env.DB.prepare('SELECT id FROM wa_conversations WHERE wa_chat_id = ?')
+      .bind(msg.chatId).first();
+    conversationId = conv && conv.id;
   } catch (e) {
     return json({ error: 'DB write failed: ' + e.message }, 500);
   }
 
+  // record the inbound message in the thread (best-effort: wa_messages may be
+  // unmigrated — the conversation row is still captured above)
+  if (conversationId) {
+    try {
+      await insertMessage(env, { conversationId, chatId: msg.chatId, messageId: msg.messageId, direction: 'in', body: msg.text, senderName: msg.name, msgAt, now });
+    } catch (_) { /* wa_messages not migrated yet */ }
+  }
+
   return json({ ok: true, chat_id: msg.chatId, platform: resolved.platform, link_method: resolved.linkMethod });
+}
+
+// Insert one message into the thread. INSERT OR IGNORE dedups on wa_message_id
+// (uazapi message id) so a webhook retry — or a reply we already stored locally
+// from /api/send-message — doesn't double up.
+async function insertMessage(env, m) {
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO wa_messages
+      (conversation_id, wa_chat_id, wa_message_id, direction, body, status, sender_name, msg_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    m.conversationId, m.chatId, m.messageId || null, m.direction, m.body || '',
+    m.direction === 'out' ? 'sent' : null, m.senderName || null, m.msgAt, m.now,
+  ).run();
 }
 
 // Map uazapi's payload to our internal shape. Tuned for the uazapi (uazapiGO v2)
@@ -98,12 +139,22 @@ function normalise(p) {
   const fromMe = !!(m.fromMe || m.fromme || m.wasSentByApi || m.key?.fromMe);
   const referral = m.referral || m.message?.referral
     || m.contextInfo?.externalAdReply || m.message?.contextInfo?.externalAdReply || null;
+  // message id (dedup) and timestamp — permissive across uazapi v2 / Baileys shapes
+  const messageId = m.id || m.messageid || m.messageId || m.key?.id || p.id || null;
+  const tsRaw = m.messageTimestamp || m.messagetimestamp || m.messageTimestampMs || m.timestamp || m.t || null;
+  let msgAt = null;
+  if (tsRaw != null) {
+    const n = Number(tsRaw);
+    if (!Number.isNaN(n) && n > 0) msgAt = n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+  }
   return {
     chatId,
     text: String(text || ''),
     phone,
     name,
     fromMe,
+    messageId: messageId ? String(messageId) : null,
+    msgAt,
     referral,
     referralRaw: referral ? JSON.stringify(referral) : null,
   };

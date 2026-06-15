@@ -104,6 +104,28 @@
   .logo-dark{ display:none; }
   [data-theme="dark"] .logo-light{ display:none; }
   [data-theme="dark"] .logo-dark{ display:inline-block; }
+
+  /* atendimento dot — red=unread, yellow=read/unanswered, green=awaiting lead */
+  .cdot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:.55rem; flex:0 0 auto; }
+  .cdot-red{ background:var(--red); } .cdot-yellow{ background:var(--google); }
+  .cdot-green{ background:var(--green); } .cdot-none{ background:var(--muted); opacity:.3; }
+
+  /* CRM thread */
+  .thread{ max-height:46vh; overflow-y:auto; display:flex; flex-direction:column; gap:.4rem; padding:.55rem; background:var(--card-2); border:1px solid var(--border); border-radius:12px; }
+  .bubble{ max-width:80%; padding:.5rem .7rem; border-radius:12px; font-size:.85rem; line-height:1.35; white-space:pre-wrap; word-break:break-word; }
+  .bubble-in{ align-self:flex-start; background:var(--card); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .bubble-out{ align-self:flex-end; background:color-mix(in srgb,var(--accent) 16%,var(--card)); border:1px solid color-mix(in srgb,var(--accent) 35%,transparent); border-bottom-right-radius:4px; }
+  .bubble-time{ font-size:.6rem; color:var(--muted); margin-top:.2rem; text-align:right; }
+
+  /* "ao vivo" indicator (auto-refresh) */
+  .live{ display:inline-flex; align-items:center; gap:.35rem; font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--green); }
+  .live .pulse{ width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 55%,transparent)} 70%{box-shadow:0 0 0 7px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+
+  /* details key/value grid */
+  .kv{ display:grid; grid-template-columns:auto 1fr; gap:.3rem .9rem; font-size:.8rem; }
+  .kv dt{ color:var(--muted); white-space:nowrap; }
+  .kv dd{ color:var(--text); word-break:break-all; font-variant-numeric:tabular-nums; margin:0; }
 </style>
 </head>
 <body>
@@ -225,6 +247,33 @@
         </div>
       </section>
 
+      <!-- receita & retorno -->
+      <section class="mt-7">
+        <div class="section-label mb-2.5">Receita &amp; retorno</div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--green)"></div>
+            <div class="kpi-label">Receita total</div>
+            <div class="kpi-value mono" id="k-rev-total" style="color:var(--green)">—</div>
+            <div class="kpi-sub">Soma de todas as vendas</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule"></div>
+            <div class="kpi-label">Receita · tráfego</div>
+            <div class="kpi-value mono" id="k-rev-traffic">—</div>
+            <div class="kpi-sub"><span class="dot-meta">Meta</span> + <span class="dot-google">Google</span> (pago)</div>
+          </div>
+          <div class="card kpi"><div class="kpi-rule" style="background:var(--secondary)"></div>
+            <div class="kpi-label">Receita · orgânico</div>
+            <div class="kpi-value mono" id="k-rev-organic">—</div>
+            <div class="kpi-sub">Demais origens (sem mídia paga)</div>
+          </div>
+          <div class="card kpi kpi-hero">
+            <div class="kpi-label">ROAS (tráfego)</div>
+            <div class="kpi-value mono" id="k-roas">—</div>
+            <div class="kpi-sub" id="k-roas-sub">receita tráfego ÷ investimento</div>
+          </div>
+        </div>
+      </section>
+
       <!-- daily chart -->
       <section class="card p-5 fade-in mt-7">
         <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -312,13 +361,17 @@
       <!-- inbox -->
       <section class="card p-5 fade-in mt-6">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div class="font-semibold head">Lista de leads (WhatsApp)</div>
+          <div class="flex items-center gap-2">
+            <span class="font-semibold head">Lista de leads (WhatsApp)</span>
+            <span class="live" title="Atualiza automaticamente"><span class="pulse"></span>ao vivo</span>
+          </div>
           <div class="seg" id="inbox-filter">
             <div class="seg-btn active" data-status="">Todos</div>
             <div class="seg-btn" data-status="new">Novos</div>
             <div class="seg-btn" data-status="qualified">Qualificados</div>
             <div class="seg-btn" data-status="sale">Vendas</div>
             <div class="seg-btn" data-status="lost">Perdidos</div>
+            <div class="seg-btn" data-status="archived">Arquivados</div>
           </div>
         </div>
         <div class="overflow-x-auto -mx-1">
@@ -391,8 +444,9 @@
   </main>
 </div>
 
-<!-- ============================ CONFIRM MODAL ============================ -->
-<div id="modal" class="modal-bg hidden">
+<!-- ============================ CONFIRM MODAL (funil) ============================ -->
+<!-- z-index 80: this confirm sits ABOVE the CRM / detail pop-ups (z-70). -->
+<div id="modal" class="modal-bg hidden" style="z-index:80">
   <div class="card w-full max-w-md p-6 fade-in">
     <div class="font-semibold head text-lg mb-1" id="modal-title">Confirmar</div>
     <div class="text-sm mb-4" style="color:var(--dim)" id="modal-text"></div>
@@ -408,11 +462,75 @@
   </div>
 </div>
 
+<!-- ============================ CRM MODAL (WhatsApp) ============================ -->
+<div id="crm-modal" class="modal-bg hidden">
+  <div class="card w-full max-w-2xl p-6 fade-in flex flex-col" style="max-height:90vh">
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div>
+        <div class="font-semibold head text-lg" id="crm-name">—</div>
+        <div class="text-xs mono" style="color:var(--muted)" id="crm-phone"></div>
+        <div class="mt-1.5 flex flex-wrap items-center gap-1.5" id="crm-meta"></div>
+      </div>
+      <button id="crm-close" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <div class="thread mb-3" id="crm-thread"><div class="text-center text-xs" style="color:var(--muted)">Carregando…</div></div>
+    <div id="crm-senderr" class="hidden text-xs mb-2" style="color:var(--red)"></div>
+    <div class="flex items-end gap-2">
+      <textarea id="crm-text" rows="2" class="date-input w-full" placeholder="Escreva uma resposta… (Enter envia, Shift+Enter quebra linha)" style="resize:vertical"></textarea>
+      <button id="crm-send" class="btn btn-primary">Enviar</button>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-3 pt-3" style="border-top:1px solid var(--border)">
+      <button class="btn-sm" id="crm-qualified">Qualificar</button>
+      <button class="btn-sm" id="crm-sale">Venda</button>
+      <button class="btn-sm" id="crm-lost">Perdido</button>
+      <span class="flex-1"></span>
+      <button class="btn-sm" id="crm-archive">Arquivar</button>
+      <button class="btn-sm" id="crm-delete" style="color:var(--red)">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ LEAD DETAIL MODAL (UTM) ============================ -->
+<div id="detail-modal" class="modal-bg hidden">
+  <div class="card w-full max-w-xl p-6 fade-in" style="max-height:90vh;overflow-y:auto">
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div>
+        <div class="font-semibold head text-lg" id="detail-name">Detalhes do lead</div>
+        <div class="text-xs mono" style="color:var(--muted)" id="detail-phone"></div>
+      </div>
+      <button id="detail-close" class="icon-btn" aria-label="Fechar">✕</button>
+    </div>
+    <dl class="kv" id="detail-kv"></dl>
+    <div id="detail-fires" class="mt-4"></div>
+    <div class="flex flex-wrap items-center gap-2 mt-4 pt-3" style="border-top:1px solid var(--border)">
+      <span class="flex-1"></span>
+      <button class="btn-sm" id="detail-archive">Arquivar</button>
+      <button class="btn-sm" id="detail-delete" style="color:var(--red)">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ DELETE CONFIRM MODAL ============================ -->
+<!-- z-index 80: sits above the CRM / detail pop-ups it can be triggered from. -->
+<div id="del-modal" class="modal-bg hidden" style="z-index:80">
+  <div class="card w-full max-w-md p-6 fade-in">
+    <div class="font-semibold head text-lg mb-1" style="color:var(--red)">Excluir lead</div>
+    <div class="text-sm mb-3" style="color:var(--dim)">Remove o lead da lista (o histórico de atribuição é preservado no banco). Para confirmar, digite o nome do contato: <strong id="del-name" style="color:var(--text)"></strong></div>
+    <input id="del-input" type="text" class="date-input w-full" placeholder="Digite o nome exato" autocomplete="off">
+    <div id="del-error" class="hidden text-xs mt-2" style="color:var(--red)"></div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button id="del-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="del-ok" class="btn btn-primary" disabled style="opacity:.5">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
 
   var REPORT = '/api/campaign-report', INBOX = '/api/leads-inbox', MARK = '/api/mark-conversion', ATTR = '/api/utm-attribution';
+  var DETAIL = '/api/conversation-detail', SEND = '/api/send-message';
   var KEY = '', chart = null, lineMetric = 'leads', tab = 'resultados', inboxStatus = '', attrFilter = '';
   var state = { from:'', to:'', preset:'7' };
   var lastReport = null, originFilterBuilt = false;
@@ -461,7 +579,7 @@
   function openGate(msg){ $('app').classList.add('hidden'); $('gate').classList.remove('hidden');
     var err=$('gate-error'); if(msg){ err.textContent=msg; err.classList.remove('hidden'); } else err.classList.add('hidden'); $('gate-key').focus(); }
   function submitGate(){ var k=$('gate-key').value.trim(); if(!k) return; KEY=k;
-    try{ sessionStorage.setItem('dashKey',k); }catch(e){} $('gate').classList.add('hidden'); $('app').classList.remove('hidden'); loadAll(); }
+    try{ sessionStorage.setItem('dashKey',k); }catch(e){} $('gate').classList.add('hidden'); $('app').classList.remove('hidden'); loadAll(); startPolling(); }
 
   // -------- fetch --------
   function qs(){ return 'key='+encodeURIComponent(KEY)+'&from='+encodeURIComponent(state.from)+'&to='+encodeURIComponent(state.to); }
@@ -478,7 +596,9 @@
   }
 
   function loadInbox(){
-    fetch(INBOX+'?'+qs()+'&status='+encodeURIComponent(inboxStatus)).then(function(r){
+    // the "Arquivados" folder is its own query (?archived=1, no status filter)
+    var extra = inboxStatus==='archived' ? '&archived=1' : '&status='+encodeURIComponent(inboxStatus);
+    fetch(INBOX+'?'+qs()+extra).then(function(r){
       if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
     }).then(renderInbox).catch(function(){ /* keep silent; report carries the main error */ });
   }
@@ -511,6 +631,16 @@
     $('f-qualified').textContent = int(f.qualified||0);
     $('f-sales').textContent = int(f.sales||0);
     $('f-revenue').textContent = brl(f.revenue||0);
+
+    var rev=d.revenue||{};
+    $('k-rev-total').textContent = brl(rev.total||0);
+    $('k-rev-traffic').textContent = brl(rev.traffic||0);
+    $('k-rev-organic').textContent = brl(rev.organic||0);
+    $('k-roas').textContent = (d.roas==null) ? '—' : num(d.roas,2)+'×';
+    var lucro=d.profit_traffic;
+    $('k-roas-sub').innerHTML = (lucro==null||rev.traffic==null)
+      ? 'receita tráfego ÷ investimento'
+      : 'Lucro '+brl(lucro)+' <span style="color:var(--hero-dim)">(receita − investimento)</span>';
 
     renderAds(d.top_ads_meta||[]);
     renderKeywords(d.top_keywords_google||[]);
@@ -589,24 +719,41 @@
   function statusPill(s){ var map={ new:['pill-muted','Novo'], qualified:['pill-amber','Qualificado'], sale:['pill-green','Venda'], lost:['pill-muted','Perdido'] };
     var v=map[s]||map.new; return '<span class="pill '+v[0]+'">'+v[1]+'</span>'; }
 
+  function dotTitle(d){ return d==='red'?'Mensagem nova não lida':d==='yellow'?'Lida — aguardando sua resposta':d==='green'?'Respondido — aguardando o lead':'Sem mensagens'; }
+
   function renderInbox(d){
     var tb=$('rows-inbox'), empty=$('inbox-empty');
     var rows=d.leads||[];
     if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     tb.innerHTML = rows.map(function(l){
-      var contact = '<div>'+esc(l.name||'(sem nome)')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(l.phone||'')+'</div>';
+      var dot = '<span class="cdot cdot-'+(l.dot||'none')+'" title="'+dotTitle(l.dot)+'"></span>';
+      var contact = '<div style="display:flex;align-items:center">'+dot+'<div><div>'+esc(l.name||'(sem nome)')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(l.phone||'')+'</div></div></div>';
       var origin = platformPill(l.platform) + (l.attributable?'':' <span class="pill pill-muted" title="Sem id de clique para enviar conversão">manual</span>');
       var camp = esc(l.utm_campaign||l.utm_content||'—');
       var val = l.sale_value!=null ? brl(l.sale_value) : '—';
+      var arch = l.archived
+        ? '<button class="btn-sm" data-life="unarchive" data-id="'+l.id+'">Desarquivar</button>'
+        : '<button class="btn-sm" data-life="archive" data-id="'+l.id+'">Arquivar</button>';
       var actions = ''
         + '<button class="btn-sm" data-act="qualified" data-id="'+l.id+'" '+(l.is_qualified?'disabled style="opacity:.5"':'')+'>Qualificar</button> '
         + '<button class="btn-sm" data-act="sale" data-id="'+l.id+'" '+(l.status==='sale'?'disabled style="opacity:.5"':'')+'>Venda</button> '
-        + '<button class="btn-sm" data-act="lost" data-id="'+l.id+'">Perdido</button>';
-      return '<tr><td>'+contact+'</td><td>'+origin+'</td><td>'+camp+'</td><td>'+statusPill(l.status)+'</td><td class="mono">'+val+'</td><td style="white-space:nowrap">'+actions+'</td></tr>';
+        + '<button class="btn-sm" data-act="lost" data-id="'+l.id+'">Perdido</button> '
+        + arch + ' '
+        + '<button class="btn-sm" data-del="'+l.id+'" data-name="'+esc(l.name||'')+'" style="color:var(--red)">Excluir</button>';
+      return '<tr class="crm-row" data-row-id="'+l.id+'" style="cursor:pointer"><td>'+contact+'</td><td>'+origin+'</td><td>'+camp+'</td><td>'+statusPill(l.status)+'</td><td class="mono">'+val+'</td><td style="white-space:nowrap">'+actions+'</td></tr>';
     }).join('');
     tb.querySelectorAll('button[data-act]').forEach(function(b){
-      b.addEventListener('click', function(){ openMark(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-act')); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); openMark(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-act')); });
+    });
+    tb.querySelectorAll('button[data-life]').forEach(function(b){
+      b.addEventListener('click', function(e){ e.stopPropagation(); lifecycle(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-life')); });
+    });
+    tb.querySelectorAll('button[data-del]').forEach(function(b){
+      b.addEventListener('click', function(e){ e.stopPropagation(); openDelete(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-name')); });
+    });
+    tb.querySelectorAll('tr.crm-row').forEach(function(tr){
+      tr.addEventListener('click', function(e){ if(e.target.closest('button,select,a')) return; openCrm(parseInt(tr.getAttribute('data-row-id'),10)); });
     });
   }
 
@@ -633,13 +780,15 @@
     if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     tb.innerHTML=rows.map(function(r){
-      var contact='<div>'+esc(r.name||'(sem nome)')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(r.phone||'')+'</div>';
+      var nameLink='<span class="lead-detail" data-id="'+r.id+'" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">'+esc(r.name||'(sem nome)')+'</span>';
+      var contact='<div>'+nameLink+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(r.phone||'')+'</div>';
       var badge='<span class="pill '+originPillClass(r.origin)+'">'+esc(r.origin_label)+'</span>'+(r.origin_manual?' <span class="pill pill-muted">manual</span>':'');
       var fonte=esc(r.utm_source||'—')+(r.utm_medium?(' / '+esc(r.utm_medium)):'');
       var cont=esc(r.utm_content||'—')+(r.utm_term?(' · '+esc(r.utm_term)):'');
       return '<tr><td>'+contact+'</td><td>'+badge+'</td><td class="text-xs">'+fonte+'</td><td>'+esc(r.utm_campaign||'—')+'</td><td class="text-xs">'+cont+'</td><td>'+statusPill(r.status)+'</td><td>'+originSelectHtml(r)+'</td></tr>';
     }).join('');
     tb.querySelectorAll('select.origin-tag').forEach(function(s){ s.addEventListener('change', function(){ tagOrigin(parseInt(s.getAttribute('data-id'),10), s.value); }); });
+    tb.querySelectorAll('span.lead-detail').forEach(function(el){ el.addEventListener('click', function(){ openDetail(parseInt(el.getAttribute('data-id'),10)); }); });
   }
   function tagOrigin(id, origin){
     fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:'origin', origin:origin }) })
@@ -678,10 +827,133 @@
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(res){ $('modal-ok').disabled=false;
         if(!res.ok){ var e=$('modal-error'); e.textContent=res.j.error||'Falha ao marcar.'; e.classList.remove('hidden'); return; }
-        closeMark(); loadInbox(); loadReport();
+        closeMark(); loadInbox(); loadReport(); if(crmId!=null) loadCrm(); if(tab==='atribuicao') loadAttribution();
         if(res.j.fire && res.j.fire.fired===false && res.j.fire.reason){ showNotice('Marcado, mas a conversão não foi enviada: '+res.j.fire.reason); }
       }).catch(function(){ $('modal-ok').disabled=false; var e=$('modal-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); });
   }
+
+  // -------- CRM modal (ver / responder mensagens) --------
+  var crmId=null;
+  function fmtTime(ts){ if(!ts) return ''; var d=new Date(ts*1000); return pad(d.getDate())+'/'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+  function openCrm(id){
+    crmId=id;
+    $('crm-name').textContent='—'; $('crm-phone').textContent=''; $('crm-meta').innerHTML='';
+    $('crm-text').value=''; $('crm-senderr').classList.add('hidden');
+    $('crm-thread').innerHTML='<div class="text-center text-xs" style="color:var(--muted)">Carregando…</div>';
+    $('crm-modal').classList.remove('hidden'); loadCrm();
+  }
+  function loadCrm(){
+    if(crmId==null) return;
+    fetch(DETAIL+'?key='+encodeURIComponent(KEY)+'&id='+crmId+'&mark_read=1').then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } return r.json();
+    }).then(function(d){
+      if(d.error){ $('crm-thread').innerHTML='<div class="text-center text-xs" style="color:var(--red)">'+esc(d.error)+'</div>'; return; }
+      var c=d.conversation||{};
+      $('crm-name').textContent=c.name||'(sem nome)'; $('crm-phone').textContent=c.phone||'';
+      $('crm-meta').innerHTML=platformPill(c.platform)+statusPill(c.status)+(c.archived_at?'<span class="pill pill-muted">arquivado</span>':'');
+      $('crm-archive').textContent=c.archived_at?'Desarquivar':'Arquivar';
+      renderThread(d.messages||[]);
+    }).catch(function(e){ if(e==='auth') return; $('crm-thread').innerHTML='<div class="text-center text-xs" style="color:var(--red)">Falha ao carregar.</div>'; });
+  }
+  function renderThread(msgs){
+    var t=$('crm-thread');
+    if(!msgs.length){ t.innerHTML='<div class="text-center text-xs px-4 py-6" style="color:var(--muted)">Sem mensagens registradas ainda. O histórico é preenchido a partir da conexão do uazapi (não há backfill de mensagens antigas).</div>'; return; }
+    t.innerHTML=msgs.map(function(m){
+      var cls=m.direction==='out'?'bubble-out':'bubble-in';
+      var meta=fmtTime(m.at)+(m.direction==='out'&&m.status==='failed'?' · falhou':'');
+      return '<div class="bubble '+cls+'">'+esc(m.body||'')+'<div class="bubble-time">'+meta+'</div></div>';
+    }).join('');
+    t.scrollTop=t.scrollHeight;
+  }
+  function sendCrm(){
+    var text=$('crm-text').value.trim(); if(!text||crmId==null) return;
+    var btn=$('crm-send'); btn.disabled=true; $('crm-senderr').classList.add('hidden');
+    fetch(SEND+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:crmId, text:text }) })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(res){ btn.disabled=false;
+        if(!res.ok){ var e=$('crm-senderr'); e.textContent=res.j.error||'Falha ao enviar.'; e.classList.remove('hidden'); return; }
+        $('crm-text').value=''; loadCrm(); loadInbox();
+      }).catch(function(){ btn.disabled=false; var e=$('crm-senderr'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); });
+  }
+  function closeCrm(){ $('crm-modal').classList.add('hidden'); crmId=null; }
+
+  // -------- lead detail modal (Atribuição) --------
+  var detailId=null;
+  function openDetail(id){
+    detailId=id;
+    $('detail-name').textContent='Detalhes do lead'; $('detail-phone').textContent='';
+    $('detail-kv').innerHTML='<dt>—</dt><dd>Carregando…</dd>'; $('detail-fires').innerHTML='';
+    $('detail-modal').classList.remove('hidden');
+    fetch(DETAIL+'?key='+encodeURIComponent(KEY)+'&id='+id+'&mark_read=0').then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } return r.json();
+    }).then(function(d){
+      if(d.error){ $('detail-kv').innerHTML='<dt>Erro</dt><dd>'+esc(d.error)+'</dd>'; return; }
+      var c=d.conversation||{}, s=d.session||null;
+      $('detail-name').textContent=c.name||'(sem nome)'; $('detail-phone').textContent=c.phone||'';
+      $('detail-archive').textContent=c.archived_at?'Desarquivar':'Arquivar';
+      detailArchived = !!c.archived_at; detailName = c.name||'';
+      var rows=[
+        ['ID', c.id], ['Status', c.status], ['Qualificado', c.is_qualified?'sim':null],
+        ['Plataforma', c.platform], ['Método de vínculo', c.link_method],
+        ['Chat ID', c.wa_chat_id], ['ctwa_clid', c.ctwa_clid], ['gclid', c.gclid], ['session_id', c.session_id],
+        ['fbp', c.fbp], ['fbc', c.fbc], ['Origem (tag manual)', c.manual_origin],
+        ['utm_source', c.utm_source], ['utm_medium', c.utm_medium], ['utm_campaign', c.utm_campaign],
+        ['utm_content', c.utm_content], ['utm_term', c.utm_term],
+        ['1ª mensagem', c.first_message],
+        ['Valor da venda', c.sale_value!=null?brl(c.sale_value):null], ['Marcado por', c.marked_by],
+        ['Criado', fmtTime(c.created_at)], ['Última entrada', fmtTime(c.last_inbound_at)],
+        ['Última saída', fmtTime(c.last_outbound_at)]
+      ];
+      if(s){
+        rows.push(['Landing (LP)', s.landing_url]); rows.push(['Referrer', s.referrer]);
+        rows.push(['IP', s.ip_address]); rows.push(['User agent', s.user_agent]);
+      }
+      $('detail-kv').innerHTML=rows.filter(function(r){ return r[1]!==null&&r[1]!==undefined&&r[1]!==''; })
+        .map(function(r){ return '<dt>'+esc(r[0])+'</dt><dd>'+esc(String(r[1]))+'</dd>'; }).join('');
+      var fires=d.fires||[];
+      $('detail-fires').innerHTML = fires.length
+        ? '<div class="section-label mb-1.5">Conversões enviadas</div>'+fires.map(function(f){
+            return '<div class="text-xs" style="color:var(--dim)">'+esc(f.event_name)+' · '+esc(f.platform)+' · '+(f.response_ok?'ok':'falha')+(f.value!=null?(' · '+brl(f.value)):'')+' · '+fmtTime(f.fired_at)+'</div>'; }).join('')
+        : '';
+    }).catch(function(e){ if(e==='auth') return; $('detail-kv').innerHTML='<dt>Erro</dt><dd>Falha ao carregar.</dd>'; });
+  }
+  var detailArchived=false, detailName='';
+  function closeDetail(){ $('detail-modal').classList.add('hidden'); detailId=null; }
+
+  // -------- lifecycle: arquivar / desarquivar --------
+  function lifecycle(id, action){
+    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:action }) })
+      .then(function(r){ return r.json(); })
+      .then(function(){ loadInbox(); loadReport(); if(tab==='atribuicao') loadAttribution(); if(crmId===id) loadCrm(); if(detailId===id) openDetail(id); })
+      .catch(function(){});
+  }
+
+  // -------- excluir (soft-delete, confirma digitando o nome) --------
+  var delId=null, delName='';
+  function openDelete(id, name){
+    delId=id; delName=(name && String(name).trim()) ? String(name).trim() : 'sem nome';
+    $('del-name').textContent=delName; $('del-input').value=''; $('del-error').classList.add('hidden');
+    var ok=$('del-ok'); ok.disabled=true; ok.style.opacity='.5';
+    $('del-modal').classList.remove('hidden'); $('del-input').focus();
+  }
+  function delCheck(){
+    var v=$('del-input').value.trim().toLowerCase();
+    var match = v!=='' && v===delName.trim().toLowerCase();
+    var ok=$('del-ok'); ok.disabled=!match; ok.style.opacity=match?'1':'.5';
+  }
+  function submitDelete(){
+    if(delId==null) return; var ok=$('del-ok'); ok.disabled=true;
+    var id=delId;
+    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:'delete', confirm:true }) })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(res){
+        if(!res.ok){ var e=$('del-error'); e.textContent=res.j.error||'Falha ao excluir.'; e.classList.remove('hidden'); ok.disabled=false; ok.style.opacity='1'; return; }
+        closeDelete();
+        if(crmId===id) closeCrm(); if(detailId===id) closeDetail();
+        loadInbox(); loadReport(); if(tab==='atribuicao') loadAttribution();
+      }).catch(function(){ var e=$('del-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); ok.disabled=false; ok.style.opacity='1'; });
+  }
+  function closeDelete(){ $('del-modal').classList.add('hidden'); delId=null; }
 
   // -------- controls --------
   function applyState(){ $('date-from').value=state.from; $('date-to').value=state.to;
@@ -716,14 +988,49 @@
     $('modal').addEventListener('click', function(e){ if(e.target===$('modal')) closeMark(); });
     $('modal-ok').addEventListener('click', submitMark);
 
+    // CRM modal
+    $('crm-close').addEventListener('click', closeCrm);
+    $('crm-modal').addEventListener('click', function(e){ if(e.target===$('crm-modal')) closeCrm(); });
+    $('crm-send').addEventListener('click', sendCrm);
+    $('crm-text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendCrm(); } });
+    $('crm-qualified').addEventListener('click', function(){ if(crmId!=null) openMark(crmId,'qualified'); });
+    $('crm-sale').addEventListener('click', function(){ if(crmId!=null) openMark(crmId,'sale'); });
+    $('crm-lost').addEventListener('click', function(){ if(crmId!=null) openMark(crmId,'lost'); });
+    $('crm-archive').addEventListener('click', function(){ if(crmId!=null) lifecycle(crmId, $('crm-archive').textContent==='Desarquivar'?'unarchive':'archive'); });
+    $('crm-delete').addEventListener('click', function(){ if(crmId!=null) openDelete(crmId, $('crm-name').textContent); });
+
+    // lead detail modal
+    $('detail-close').addEventListener('click', closeDetail);
+    $('detail-modal').addEventListener('click', function(e){ if(e.target===$('detail-modal')) closeDetail(); });
+    $('detail-archive').addEventListener('click', function(){ if(detailId!=null) lifecycle(detailId, detailArchived?'unarchive':'archive'); });
+    $('detail-delete').addEventListener('click', function(){ if(detailId!=null) openDelete(detailId, detailName); });
+
+    // delete confirm modal
+    $('del-cancel').addEventListener('click', closeDelete);
+    $('del-modal').addEventListener('click', function(e){ if(e.target===$('del-modal')) closeDelete(); });
+    $('del-input').addEventListener('input', delCheck);
+    $('del-input').addEventListener('keydown', function(e){ if(e.key==='Enter' && !$('del-ok').disabled) submitDelete(); });
+    $('del-ok').addEventListener('click', submitDelete);
+
     var maxDay=todayYmd(); $('date-from').max=maxDay; $('date-to').max=maxDay;
   }
+
+  // -------- auto-refresh (tempo real no WhatsApp/Comercial) --------
+  var POLL_MS = 10000, pollTimer = null;
+  function poll(){
+    if(!KEY) return;
+    if(document.hidden) return;                       // pausa em aba oculta (economiza)
+    if($('app').classList.contains('hidden')) return; // não roda no gate
+    if(tab==='whatsapp') loadInbox();                 // lista de leads + bolinhas
+    if(crmId!=null) loadCrm();                         // thread aberto → novas mensagens
+  }
+  function startPolling(){ if(pollTimer) clearInterval(pollTimer); pollTimer=setInterval(poll, POLL_MS); }
 
   function init(){
     bind();
     var r=presetRange('7'); state.from=r.from; state.to=r.to; state.preset='7'; applyState();
     KEY=initialKey(); if(!KEY){ openGate(); return; }
-    $('app').classList.remove('hidden'); loadAll();
+    $('app').classList.remove('hidden'); loadAll(); startPolling();
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
