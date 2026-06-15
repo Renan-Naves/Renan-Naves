@@ -17,7 +17,7 @@ Multi-page static site on Cloudflare Pages. Single domain, path-based routing.
 
 - `_template/` — scaffold for new pages. Don't edit except to improve the template.
 - `shared/` — CSS/JS/fonts used by 2+ pages. Create only when real duplication appears.
-- `_headers` — cache rules. `/shared/*` cached for a year; HTML is not cached.
+- `_headers` — cache rules. `/shared/*` cached for a year (`immutable`); HTML is not cached. **Because of this, every `/shared/*` reference is versioned with a `?v=YYYYMMDD` query string (e.g. `/shared/renan.js?v=20260614`) — when you edit a shared asset you MUST bump that version in all referencing HTML, or returning visitors keep the cached old file.**
 - `.claude/commands/` — slash commands (e.g. `/new-page`).
 - `docs/` — architecture and onboarding docs (shareable). Tracking flow: `docs/TRACKING.md`; ad-spend sync + `/dashboard`: `docs/ad-spend-sync.md`.
 - `functions/` — Cloudflare Pages Functions (the tracking stack — see `## Tracking`). `_middleware.js` runs on every page; `tracker.js` is `POST /tracker` (Meta CAPI + GA4 + Google Ads fan-out); `google-ads.js` is the Google Ads offline-conversion uploader (auto `Lead` by gclid, plus a general `sendGoogleOfflineConversion` for manual QualifiedLead/Purchase); `meta-conversions.js` fires manual Meta WhatsApp conversions (`business_messaging`, by `ctwa_clid`); `origins.js` is the canonical traffic-origin taxonomy + `resolveOrigin()`; `scripts/[[path]].js` is the first-party GA4 gtag proxy (`/scripts/gtag.js`); `api/*` are the dashboard endpoints (reads: `campaign-report`, `leads-inbox`, `utm-attribution`; writer: `mark-conversion`, which also tags manual origin via `action:'origin'`); `webhook/uazapi/[slug].js` is the (stub) WhatsApp inbound webhook.

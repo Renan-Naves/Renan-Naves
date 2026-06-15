@@ -165,10 +165,11 @@
     try {
       var ref = sessionRef();
       if (!ref) return;
-      var raw = a.getAttribute("href") || "";
-      if (/(?:ref:\s*|#)[0-9a-f]{8}/i.test(raw)) return; // already tagged
-      var u = new URL(raw, location.href);
+      var u = new URL(a.getAttribute("href") || "", location.href);
       var text = u.searchParams.get("text") || "";
+      // Test the DECODED text param, not the raw (URL-encoded) href — otherwise
+      // "ref%3A"/"%23" never match and a second click double-appends the token.
+      if (/(?:ref:\s*|#)[0-9a-f]{8}/i.test(text)) return; // already tagged
       text += (text ? " " : "") + "#" + ref;
       u.searchParams.set("text", text);
       a.setAttribute("href", u.toString());
