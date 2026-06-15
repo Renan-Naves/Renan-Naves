@@ -252,19 +252,27 @@ async function sendToMeta({ body, clientIp, userAgent, fbp, fbc, hashedEm, hashe
   if (fbp) metaUserData.fbp = fbp;
   if (fbc) metaUserData.fbc = fbc;
 
-  const payload = {
-    data: [{
-      event_name: body.event_name,
-      event_time: body.event_time,
-      event_id: body.event_id,
-      event_source_url: body.event_source_url || '',
-      action_source: 'website',
-      user_data: metaUserData,
-    }],
+  const event = {
+    event_name: body.event_name,
+    event_time: body.event_time,
+    event_id: body.event_id,
+    event_source_url: body.event_source_url || '',
+    action_source: 'website',
+    user_data: metaUserData,
   };
+  // Optional custom_data passthrough (e.g. value/currency for Purchase tests).
+  if (body.custom_data && typeof body.custom_data === 'object') {
+    event.custom_data = body.custom_data;
+  }
 
-  if (env.META_TEST_EVENT_CODE) {
-    payload.test_event_code = env.META_TEST_EVENT_CODE;
+  const payload = { data: [event] };
+
+  // test_event_code routes the event to Events Manager → Test Events. Allow it
+  // per-request (for QA) without setting it globally, which would divert all
+  // production traffic into test mode.
+  const testEventCode = body.test_event_code || env.META_TEST_EVENT_CODE;
+  if (testEventCode) {
+    payload.test_event_code = testEventCode;
   }
 
   const payloadJson = JSON.stringify(payload);
