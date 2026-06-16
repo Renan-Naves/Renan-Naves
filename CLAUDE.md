@@ -148,8 +148,14 @@ conversions are `business_messaging` events keyed by `ctwa_clid`, and **CTWA bel
 datasets by design). Set `META_WA_PIXEL_ID` (the messaging/CTWA dataset, e.g. `973421805455371`) +
 `META_WA_ACCESS_TOKEN` (encrypt — a CAPI token generated for *that* dataset) so the conversion lands where the
 `ctwa_clid` belongs; `meta-conversions.js` falls back to `META_PIXEL_ID`/`META_ACCESS_TOKEN` only if they're unset
-(which sends CTWA conversions to the wrong, web, dataset). Optional `META_WA_TEST_EVENT_CODE` routes messaging test
-events to the B dataset's Test Events.
+(which sends CTWA conversions to the wrong, web, dataset). **Also REQUIRED for business_messaging/whatsapp events:**
+`META_WA_BUSINESS_ACCOUNT_ID` (the WhatsApp Business Account / WABA id — preferred) **or** `META_WA_PAGE_ID` (the
+CTWA ad's Facebook Page id) — without one, Meta rejects with subcode 2804116 ("Falta a identificação da Página ou da
+conta do WhatsApp Business"). Optional `META_WA_TEST_EVENT_CODE` routes messaging test events to the B dataset's
+Test Events. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
+business_messaging event to pixel B (reports the pixel used + a read-only token probe); with a throwaway `ctwa_clid`
+it ends at subcode 2804087 ("ctwa_clid inválido"), which **confirms every other layer is wired** — a real CTWA clid
+is the only thing it can't fake. **Verified 2026-06-16:** token + dataset + page_id/WABA all green (reached 2804087).
 **uazapi WhatsApp webhook** (`/webhook/uazapi/<slug>`, dormant until set): `UAZAPI_WEBHOOK_SECRET` (encrypt —
 also sent by uazapi as `x-uazapi-token` / `?token=`). Confirm `normalise()` (message id / timestamp / referral
 paths) against a real captured payload before go-live.
