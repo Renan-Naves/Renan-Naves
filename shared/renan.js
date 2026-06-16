@@ -185,7 +185,14 @@
       sessionStorage.setItem("_lead_fired", "1");
     } catch (_) {}
     var leadId = uuid();
-    try { fbq("track", "Lead", {}, { eventID: leadId }); } catch (_) {}
+    // Health/wellness pixels have the standard `Lead` event RESTRICTED by Meta
+    // (fbevents.js suppresses it: "attempting to send a restricted event").
+    // So we fire a NEUTRAL CUSTOM event instead (trackCustom). The server still
+    // receives "Lead" below — tracker.js keeps GA4 (generate_lead) + Google Ads
+    // intact and only re-labels the Meta CAPI event to the same custom name, so
+    // pixel↔CAPI dedup by event_id still holds. Build the Meta campaign /
+    // custom conversion on the event name 'AgendamentoWhatsApp'.
+    try { fbq("trackCustom", "AgendamentoWhatsApp", {}, { eventID: leadId }); } catch (_) {}
     try { if (window.gtag) gtag("event", "generate_lead"); } catch (_) {}
     track("Lead", leadId, {});
   }, true);

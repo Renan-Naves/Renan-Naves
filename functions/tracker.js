@@ -252,8 +252,16 @@ async function sendToMeta({ body, clientIp, userAgent, fbp, fbc, hashedEm, hashe
   if (fbp) metaUserData.fbp = fbp;
   if (fbc) metaUserData.fbc = fbc;
 
+  // Health/wellness pixels have the standard `Lead` event RESTRICTED — Meta
+  // suppresses it on both the browser pixel AND CAPI (the API returns
+  // events_received:1 but the event is dropped downstream). Re-label it to the
+  // same neutral CUSTOM event the browser fires (shared/renan.js), keeping the
+  // event_id so pixel↔CAPI dedup still works. GA4 + Google Ads upstream still
+  // see "Lead" (they key off body.event_name, untouched).
+  const metaEventName = body.event_name === 'Lead' ? 'AgendamentoWhatsApp' : body.event_name;
+
   const event = {
-    event_name: body.event_name,
+    event_name: metaEventName,
     event_time: body.event_time,
     event_id: body.event_id,
     event_source_url: body.event_source_url || '',
