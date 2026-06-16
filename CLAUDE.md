@@ -143,7 +143,13 @@ Ads account timezone.
 **Manual WhatsApp conversions (QualifiedLead/Purchase via `/dashboard` → `/api/mark-conversion`).** Optional,
 fire silently-skip if unset: `GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID`, `GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID`
 (Google offline conversion actions for the manual marks; reuse the same Data Manager creds above). Meta manual
-conversions reuse `META_PIXEL_ID` + `META_ACCESS_TOKEN` (sent as `business_messaging` events keyed by `ctwa_clid`).
+conversions are `business_messaging` events keyed by `ctwa_clid`, and **CTWA belongs to the MESSAGING dataset**, a
+**different pixel** from the website pixel `tracker.js` uses (web events and messaging events are separate Meta
+datasets by design). Set `META_WA_PIXEL_ID` (the messaging/CTWA dataset, e.g. `973421805455371`) +
+`META_WA_ACCESS_TOKEN` (encrypt — a CAPI token generated for *that* dataset) so the conversion lands where the
+`ctwa_clid` belongs; `meta-conversions.js` falls back to `META_PIXEL_ID`/`META_ACCESS_TOKEN` only if they're unset
+(which sends CTWA conversions to the wrong, web, dataset). Optional `META_WA_TEST_EVENT_CODE` routes messaging test
+events to the B dataset's Test Events.
 **uazapi WhatsApp webhook** (`/webhook/uazapi/<slug>`, dormant until set): `UAZAPI_WEBHOOK_SECRET` (encrypt —
 also sent by uazapi as `x-uazapi-token` / `?token=`). Confirm `normalise()` (message id / timestamp / referral
 paths) against a real captured payload before go-live.

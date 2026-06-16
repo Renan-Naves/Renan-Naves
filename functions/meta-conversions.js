@@ -17,7 +17,13 @@
 // (SHA-256, digits-only with country code) for better matching — this is the
 // one PII signal available for a WhatsApp lead.
 //
-// Stays silent unless META_PIXEL_ID + META_ACCESS_TOKEN are set.
+// CTWA conversions belong to the MESSAGING dataset — the pixel the WhatsApp
+// Business account / CTWA ads run on — which is a DIFFERENT dataset from the
+// website pixel that tracker.js uses for the LP Lead. So this prefers the
+// messaging-specific creds (META_WA_PIXEL_ID / META_WA_ACCESS_TOKEN) and only
+// falls back to the website pixel when they are unset (backward compatible).
+//
+// Stays silent unless a pixel id + access token resolve.
 // -------------------------------------------------------------------------
 
 const GRAPH_VERSION = 'v25.0';
@@ -25,7 +31,9 @@ const GRAPH_VERSION = 'v25.0';
 export async function sendMetaMessagingConversion({
   env, eventName, ctwaClid, phone, valueCents, currency, eventId, eventTime,
 }) {
-  if (!env.META_PIXEL_ID || !env.META_ACCESS_TOKEN) {
+  const pixelId = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
+  const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
+  if (!pixelId || !accessToken) {
     return { skipped: 'missing meta env' };
   }
   if (!ctwaClid) {
@@ -53,13 +61,15 @@ export async function sendMetaMessagingConversion({
       ...(Object.keys(customData).length ? { custom_data: customData } : {}),
     }],
   };
-  if (env.META_TEST_EVENT_CODE) {
-    payload.test_event_code = env.META_TEST_EVENT_CODE;
+  // Test Events code for the messaging dataset (falls back to the web one).
+  const testEventCode = env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE;
+  if (testEventCode) {
+    payload.test_event_code = testEventCode;
   }
 
   const payloadJson = JSON.stringify(payload);
   const response = await fetch(
-    `https://graph.facebook.com/${GRAPH_VERSION}/${env.META_PIXEL_ID}/events?access_token=${env.META_ACCESS_TOKEN}`,
+    `https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events?access_token=${accessToken}`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payloadJson },
   );
   const respBody = await response.text().catch(() => '');
