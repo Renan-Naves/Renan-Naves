@@ -1,0 +1,10 @@
+{
+  "//": "COPIE para .mcp.json (gitignorado) e ajuste os caminhos absolutos. Ver docs/google-ads-mcp.md.",
+  "mcpServers": {
+    "google-ads": {
+      "command": "uv",
+      "args": ["run", "--directory", "b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp", "-m", "ads_mcp.server"],
+      "env": { "GOOGLE_ADS_CREDENTIALS": "b:/One Tree Eitch/Clientes/RENAN NAVES/google-ads.yaml" }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Credenciais do Google Ads MCP (oficial) — COPIE para `google-ads.yaml` (gitignorado)
+# e preencha. São as MESMAS credenciais dos env vars GOOGLE_ADS_* do Cloudflare.
+# developer_token / client_secret / refresh_token são SEGREDOS — nunca commitar.
+# Ver docs/google-ads-mcp.md.
+
+developer_token: "__REPLACE_ME__"                 # 22 chars; conta real exige Basic Access
+client_id: "__REPLACE_ME__.apps.googleusercontent.com"
+client_secret: "__REPLACE_ME__"
+refresh_token: "__REPLACE_ME__"                   # escopo https://www.googleapis.com/auth/adwords
+login_customer_id: "3368698997"                   # MCC (336-869-8997), só dígitos
+use_proto_plus: true

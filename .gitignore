@@ -26,3 +26,10 @@ wrangler.toml
 # Exception: the cron Worker's wrangler.toml IS tracked — it carries no
 # secrets (SYNC_SECRET is set via `wrangler secret put`). See cron-worker/.
 !cron-worker/wrangler.toml
+
+# Google Ads MCP server (official, read-only) — local dev only, NEVER commit.
+# google-ads.yaml carries OAuth client/secret + refresh + developer token.
+# The cloned server + local MCP config also stay local. See docs/google-ads-mcp.md.
+google-ads.yaml
+.mcp.json
+_tools/
