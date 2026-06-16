@@ -7,5 +7,6 @@ developer_token: "__REPLACE_ME__"                 # 22 chars; conta real exige B
 client_id: "__REPLACE_ME__.apps.googleusercontent.com"
 client_secret: "__REPLACE_ME__"
 refresh_token: "__REPLACE_ME__"                   # escopo https://www.googleapis.com/auth/adwords
-login_customer_id: "3368698997"                   # MCC (336-869-8997), só dígitos
+login_customer_id: "3378698997"                   # MCC One Tree Eitch (337-869-8997), só dígitos — CONFIRMAR
+
 use_proto_plus: true

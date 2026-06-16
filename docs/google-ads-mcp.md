@@ -8,7 +8,8 @@ não cria nada — `ADS_MCP_ENABLE_MUTATIONS` fica `false`).
 Expõe 3 ferramentas: `list_accessible_customers`, `search` (GAQL), `get_resource_metadata`.
 
 > **Para que serve aqui:** inspeção interativa da conta do Dr. Renan (`978-281-8062`) via o MCC
-> `336-869-8997`. O fluxo de produção do site NÃO depende disto — conversões usam a Data Manager
+> One Tree Eitch `337-869-8997` (**CONFIRMAR** — o doc do token tem 336 vs 337 inconsistente). O
+> fluxo de produção do site NÃO depende disto — conversões usam a Data Manager
 > API e o relatório do dashboard usa `functions/api/sync/google-ads.js`. O MCP é só uma
 > ferramenta de análise para nós.
 
@@ -41,7 +42,7 @@ Enquanto isso não sai, dá para conectar e testar só contra conta de teste.
    client_id: "...apps.googleusercontent.com"
    client_secret: "..."
    refresh_token: "..."                          # escopo https://www.googleapis.com/auth/adwords
-   login_customer_id: "3368698997"               # MCC, só dígitos
+   login_customer_id: "3378698997"               # MCC (337-869-8997), só dígitos — CONFIRMAR
    use_proto_plus: true
    ```
 
