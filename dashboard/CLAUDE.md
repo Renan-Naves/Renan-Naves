@@ -12,6 +12,21 @@ URL: `/dashboard/`
 - **Integrations:** lê via `GET /api/campaign-report` e `GET /api/leads-inbox`; grava via
   `POST /api/mark-conversion`. Nenhum pixel/tracker dispara aqui (middleware ignora `/dash*`).
 
+## ⚠️ Estado atual (2026-06-16): abas WhatsApp/Comercial + Atribuição (UTM) em SOFT-DISABLE
+
+As abas **WhatsApp / Comercial** e **Atribuição (UTM)** estão **desativadas a pedido do cliente**
+até reativarmos quando formos implementar. Só a aba **Resultados** está visível. O acompanhamento
+de leads/eventos segue pelo **`/public`** (que continua lendo `/api/leads-inbox` + `/api/leads`).
+
+- Implementado com **uma flag única** no `dashboard/index.html`: `var DISABLED_TABS = ['whatsapp','atribuicao'];`
+- Os botões dessas abas ficam escondidos; `loadInbox()` e `loadAttribution()` têm um guard
+  `if(!tabEnabled(t)) return;` no topo (cobre todos os call sites).
+- **Para RELIGAR:** remova a aba de `DISABLED_TABS` (ou esvazie a lista p/ ligar todas). É a única
+  mudança necessária — nada foi removido; toda a UI/lógica das abas continua no arquivo.
+- Soft-disable é só client-side (esconde a UI). Os endpoints `/api/leads-inbox` e `/api/utm-attribution`
+  seguem respondendo se chamados direto com a `DASH_KEY` — proposital, pois o `/public` usa o `leads-inbox`.
+- A captura de leads (webhook → `wa_conversations` / `event_log`) e o resto seguem **intactos**.
+
 ## Funil (modelo desta LP — sem formulário)
 
 - **Meta = CTWA**: o anúncio abre o WhatsApp direto (pula a LP). A conversa entra por
@@ -96,3 +111,8 @@ URL: `/dashboard/`
   a lista, ordenada pelo indicador, cruza o WhatsApp do indicador com a base p/ trazer origem +
   receita dele ao lado da receita do indicado. Migrations `0024_wa_conversations_referral` +
   `0025_wa_conversations_referral_by`; endpoint `/api/referrals`.
+- 2026-06-16 — **soft-disable** das abas **WhatsApp/Comercial** e **Atribuição (UTM)** a pedido do
+  cliente (flag `DISABLED_TABS` no `index.html`: esconde botões + guard nos loaders). Só **Resultados**
+  fica visível; acompanhamento de leads migrou para o **`/public`** (que ganhou a aba **Eventos** —
+  inspeciona o payload Meta CAPI/GA4 enviado). Telefone passou a exibir `(DD) 9 NNNN-NNNN`. Reversível
+  removendo a aba de `DISABLED_TABS`.
