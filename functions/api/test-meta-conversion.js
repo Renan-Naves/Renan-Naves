@@ -31,6 +31,20 @@ export async function onRequestGet(context) {
   const valueCents = type === 'purchase' ? Math.round((Number.isNaN(value) ? 1 : value) * 100) : undefined;
   const testEventCode = url.searchParams.get('test_event_code') || undefined;
 
+  // Probe: can this token even LOAD the dataset object (read-only GET)? This
+  // disambiguates the subcode-33 error: if the GET succeeds, the token has
+  // access and the /events POST failing means the operation/structure isn't
+  // supported on that dataset; if the GET also fails, the token lacks access.
+  let objectProbe = null;
+  const waPixel = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
+  const waToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
+  if (waPixel && waToken) {
+    try {
+      const p = await fetch(`https://graph.facebook.com/v25.0/${waPixel}?fields=id,name,is_unavailable&access_token=${waToken}`);
+      objectProbe = { status: p.status, body: (await p.text().catch(() => '')).slice(0, 400) };
+    } catch (e) { objectProbe = { error: e.message }; }
+  }
+
   const result = await sendMetaMessagingConversion({
     env,
     eventName,
@@ -48,6 +62,7 @@ export async function onRequestGet(context) {
     event_name: eventName,
     pixel_used: env.META_WA_PIXEL_ID || env.META_PIXEL_ID || null,
     using_wa_pixel: !!env.META_WA_PIXEL_ID,
+    object_probe: objectProbe,
     ctwa_clid_used: ctwaClid,
     test_event_code: testEventCode || env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE || null,
     skipped: result.skipped || null,
