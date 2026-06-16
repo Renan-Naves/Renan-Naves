@@ -579,6 +579,15 @@
   var KEY = '', chart = null, lineMetric = 'leads', tab = 'resultados', inboxStatus = '', attrFilter = '';
   var state = { from:'', to:'', preset:'7' };
   var lastReport = null, originFilterBuilt = false;
+
+  // ------------------------------------------------------------------ //
+  // SOFT-DISABLE — abas temporariamente desativadas até reativarmos.    //
+  // Enquanto estiverem nesta lista, o /dashboard só mostra "Resultados"; //
+  // o acompanhamento de leads/eventos segue pelo /public. Para RELIGAR   //
+  // uma aba, basta removê-la desta lista (esvazie p/ ligar todas).       //
+  var DISABLED_TABS = ['whatsapp','atribuicao'];
+  function tabEnabled(t){ return DISABLED_TABS.indexOf(t) < 0; }
+  // ------------------------------------------------------------------ //
   var ORIGINS = [
     ['organico-site','Orgânico Site'], ['google-ads','Google Ads Site'], ['google-meu-negocio','Google Meu Negócio'],
     ['instagram-bio','Instagram Bio'], ['meta-ads','Meta Ads'], ['tiktok-bio','TikTok Bio'],
@@ -641,6 +650,7 @@
   }
 
   function loadInbox(){
+    if(!tabEnabled('whatsapp')) return;          // aba desativada (soft-disable)
     // the "Arquivados" folder is its own query (?archived=1, no status filter)
     var extra = inboxStatus==='archived' ? '&archived=1' : '&status='+encodeURIComponent(inboxStatus);
     fetch(INBOX+'?'+qs()+extra).then(function(r){
@@ -865,6 +875,7 @@
       .then(function(r){ return r.json(); }).then(function(){ loadAttribution(); loadReferrals(); }).catch(function(){});
   }
   function loadAttribution(){
+    if(!tabEnabled('atribuicao')) return;        // aba desativada (soft-disable)
     fetch(ATTR+'?'+qs()+'&origin='+encodeURIComponent(attrFilter)).then(function(r){
       if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
     }).then(renderAttr).catch(function(){});
@@ -1081,8 +1092,12 @@
     $('gate-key').addEventListener('keydown', function(e){ if(e.key==='Enter') submitGate(); });
     $('theme-toggle').addEventListener('click', function(){ applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); });
 
+    // soft-disable: esconde os botões das abas desativadas (some o conteúdo junto)
+    DISABLED_TABS.forEach(function(t){ var b=document.querySelector('.tab-btn[data-tab="'+t+'"]'); if(b) b.classList.add('hidden'); });
+
     document.querySelectorAll('.tab-btn').forEach(function(b){ b.addEventListener('click', function(){
-      tab=b.getAttribute('data-tab'); document.querySelectorAll('.tab-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
+      var t=b.getAttribute('data-tab'); if(!tabEnabled(t)) return;   // aba desativada
+      tab=t; document.querySelectorAll('.tab-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
       $('tab-resultados').classList.toggle('hidden', tab!=='resultados'); $('tab-whatsapp').classList.toggle('hidden', tab!=='whatsapp');
       $('tab-atribuicao').classList.toggle('hidden', tab!=='atribuicao');
       if(tab==='resultados' && lastReport) renderChart(lastReport.daily||[]);

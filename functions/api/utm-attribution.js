@@ -96,6 +96,8 @@ export async function onRequestGet(context) {
 function emptySummary() { return []; }
 
 // Internal tool: show the FULL WhatsApp number (BR-formatted) for the attendant.
+// The stored number is the @s.whatsapp.net JID digits (55 + DDD + line).
+// BR mobiles → "(DD) 9 NNNN-NNNN", landlines → "(DD) NNNN-NNNN".
 function formatPhone(p) {
   if (!p) return '';
   const d = String(p).replace(/\D/g, '');
@@ -103,9 +105,8 @@ function formatPhone(p) {
   if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
     const ddd = d.slice(2, 4);
     const rest = d.slice(4);
-    const mid = rest.length === 9 ? rest.slice(0, 5) : rest.slice(0, 4);
-    const end = rest.length === 9 ? rest.slice(5) : rest.slice(4);
-    return `+55 (${ddd}) ${mid}-${end}`;
+    if (rest.length === 9) return `(${ddd}) ${rest[0]} ${rest.slice(1, 5)}-${rest.slice(5)}`;
+    return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
   }
   return '+' + d;
 }

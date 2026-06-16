@@ -79,7 +79,7 @@ export async function onRequestGet(context) {
   return json({
     conversation: {
       id: conv.id,
-      phone: conv.wa_phone || '',
+      phone: formatPhone(conv.wa_phone),
       name: conv.wa_contact_name || '',
       wa_chat_id: conv.wa_chat_id || '',
       first_message: conv.first_message || '',
@@ -133,6 +133,22 @@ export async function onRequestGet(context) {
       fired_at: f.fired_at,
     })),
   });
+}
+
+// Show the FULL WhatsApp number for the attendant. The stored number is the
+// @s.whatsapp.net JID digits (55 + DDD + line).
+// BR mobiles → "(DD) 9 NNNN-NNNN", landlines → "(DD) NNNN-NNNN".
+function formatPhone(p) {
+  if (!p) return '';
+  const d = String(p).replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    if (rest.length === 9) return `(${ddd}) ${rest[0]} ${rest.slice(1, 5)}-${rest.slice(5)}`;
+    return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  }
+  return '+' + d;
 }
 
 function json(body, status = 200) {

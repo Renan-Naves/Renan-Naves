@@ -74,18 +74,29 @@
       .fire { border-top: 1px dashed var(--border); padding: 8px 14px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; display: flex; gap: 12px; flex-wrap: wrap; }
       .fire b { color: var(--fg); } .fire .ok { color: var(--green); } .fire .bad { color: var(--red); }
       .empty { color: var(--muted); padding: 10px 14px; font-size: 12px; }
+
+      .tabs { display: flex; gap: 4px; }
+      .tab { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; color: var(--muted); cursor: pointer; font: inherit; }
+      .tab:hover { background: var(--row-hover); }
+      .tab.active { background: var(--row-hover); color: var(--fg); border-color: var(--accent); }
+      .hidden { display: none !important; }
+      pre.code { margin: 2px 0 10px; padding: 10px 12px; background: var(--row-alt); border: 1px solid var(--border); border-radius: 8px; overflow: auto; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
     </style>
   </head>
   <body>
     <header>
-      <h1>Inspector CTWA · Dr. Renan Naves</h1>
+      <h1>Inspector · Dr. Renan Naves</h1>
+      <div class="tabs">
+        <button class="tab active" id="tabLeads" data-tab="leads">Leads (CTWA)</button>
+        <button class="tab" id="tabEvents" data-tab="events">Eventos</button>
+      </div>
       <span class="status" id="status">iniciando…</span>
       <span class="count" id="count"></span>
     </header>
 
     <div class="filters">
-      <label><input type="checkbox" id="onlyCtwa" checked /> só CTWA (Meta)</label>
-      <label>status
+      <label data-leads-only><input type="checkbox" id="onlyCtwa" checked /> só CTWA (Meta)</label>
+      <label data-leads-only>status
         <select id="statusSel">
           <option value="">todos</option>
           <option value="new">novo</option>
@@ -94,16 +105,17 @@
           <option value="lost">perdido</option>
         </select>
       </label>
-      <label>busca <input type="text" id="search" placeholder="nome ou telefone" /></label>
+      <label>busca <input type="text" id="search" placeholder="nome, telefone, id…" /></label>
       <label>de <input type="date" id="from" /></label>
-      <label>até <input type="date" id="to" /></label>
+      <label data-leads-only>até <input type="date" id="to" /></label>
       <label><input type="checkbox" id="auto" checked /> auto (10s)</label>
       <button class="btn" id="refreshBtn">atualizar</button>
     </div>
 
     <div class="summary" id="summary"></div>
 
-    <table>
+    <!-- Leads (CTWA) view -->
+    <table id="leadsTable">
       <thead>
         <tr>
           <th></th>
@@ -121,15 +133,28 @@
       <tbody id="rows"></tbody>
     </table>
 
+    <!-- Eventos view: cada Lead enviado às plataformas (clique = ver o payload em código) -->
+    <table id="eventsTable" class="hidden">
+      <thead>
+        <tr>
+          <th>enviado</th>
+          <th>evento</th>
+          <th>origem</th>
+          <th>navegador</th>
+          <th>Meta CAPI</th>
+          <th>GA4</th>
+          <th>event_id</th>
+        </tr>
+      </thead>
+      <tbody id="erows"></tbody>
+    </table>
+
     <div class="drawer" id="drawer" aria-hidden="true">
       <header>
         <strong id="dTitle">lead</strong>
         <button class="close" id="dClose" aria-label="fechar">×</button>
       </header>
       <div class="meta" id="dMeta"></div>
-      <h3>Disparos de conversão</h3>
-      <div id="dFires"></div>
-      <h3>Conversa</h3>
       <div class="body" id="dBody"></div>
     </div>
 
@@ -153,13 +178,16 @@
       }
 
       const els = {
-        rows: document.getElementById('rows'), count: document.getElementById('count'),
+        rows: document.getElementById('rows'), erows: document.getElementById('erows'),
+        leadsTable: document.getElementById('leadsTable'), eventsTable: document.getElementById('eventsTable'),
+        tabLeads: document.getElementById('tabLeads'), tabEvents: document.getElementById('tabEvents'),
+        count: document.getElementById('count'),
         status: document.getElementById('status'), summary: document.getElementById('summary'),
         onlyCtwa: document.getElementById('onlyCtwa'), statusSel: document.getElementById('statusSel'),
         search: document.getElementById('search'), from: document.getElementById('from'), to: document.getElementById('to'),
         auto: document.getElementById('auto'), refreshBtn: document.getElementById('refreshBtn'),
         drawer: document.getElementById('drawer'), dTitle: document.getElementById('dTitle'),
-        dMeta: document.getElementById('dMeta'), dFires: document.getElementById('dFires'),
+        dMeta: document.getElementById('dMeta'),
         dBody: document.getElementById('dBody'), dClose: document.getElementById('dClose'),
       };
 
@@ -172,8 +200,33 @@
         const cls = lm === 'ctwa' ? 'ctwa' : (['meta','google','organic'].includes(p) ? p : 'unknown');
         return `<span class="badge ${cls}">${esc(label)}</span>`;
       }
+      // Pretty-print whatever was stored in the payload/response columns: a JSON
+      // string becomes indented JSON; anything else is shown verbatim.
+      function formatJson(v) {
+        if (v == null || v === '') return '';
+        if (typeof v === 'object') { try { return JSON.stringify(v, null, 2); } catch (_) { return String(v); } }
+        const s = String(v);
+        try { return JSON.stringify(JSON.parse(s), null, 2); } catch (_) { return s; }
+      }
 
       let lastLeads = [];
+      let lastEvents = [];
+      let activeTab = 'leads';
+
+      // Refresh whichever tab is active (used by the buttons + auto-refresh).
+      function refresh() { return activeTab === 'events' ? loadEvents() : load(); }
+
+      function setTab(tab) {
+        activeTab = tab;
+        els.tabLeads.classList.toggle('active', tab === 'leads');
+        els.tabEvents.classList.toggle('active', tab === 'events');
+        els.leadsTable.classList.toggle('hidden', tab !== 'leads');
+        els.eventsTable.classList.toggle('hidden', tab !== 'events');
+        // hide the lead-only filters on the events tab
+        document.querySelectorAll('[data-leads-only]').forEach(el => el.classList.toggle('hidden', tab === 'events'));
+        els.search.value = '';
+        refresh();
+      }
 
       async function load() {
         setStatus('carregando…');
@@ -186,6 +239,23 @@
           lastLeads = leads || [];
           render();
           setStatus(`atualizado ${new Date().toLocaleTimeString('pt-BR')}` + ( (leads||[]).length ? '' : ' · sem leads no período'));
+        } catch (e) { setStatus(e.message, true); }
+      }
+
+      // Eventos: cada Lead que o stack disparou às plataformas (event_log via /api/leads),
+      // carregando o payload exato enviado + a resposta — para inspecionar em código.
+      async function loadEvents() {
+        setStatus('carregando…');
+        const params = { limit: '300', include_bots: '1' };
+        if (els.from.value) {
+          const days = Math.ceil((Date.now() - Date.parse(els.from.value + 'T00:00:00')) / 86400000);
+          if (days > 0) params.days = String(days);
+        } else { params.days = '90'; }
+        try {
+          const { leads } = await api('/api/leads', params);
+          lastEvents = leads || [];
+          renderEvents();
+          setStatus(`atualizado ${new Date().toLocaleTimeString('pt-BR')}` + ( lastEvents.length ? '' : ' · sem eventos no período'));
         } catch (e) { setStatus(e.message, true); }
       }
 
@@ -234,10 +304,81 @@
         if (tr) openDrawer(tr.dataset.id);
       });
 
+      function eventsVisible() {
+        const term = els.search.value.trim().toLowerCase();
+        return lastEvents.filter(ev => {
+          if (!term) return true;
+          return [ev.event_id, ev.session_id, ev.utm_source, ev.utm_campaign, ev.browser]
+            .some(v => String(v || '').toLowerCase().includes(term));
+        });
+      }
+
+      function platCell(sent, ok, code) {
+        if (!sent) return '<span style="color:var(--muted)">—</span>';
+        return `<span class="${ok ? 'tick' : ''}" style="${ok ? '' : 'color:var(--red)'}">${ok ? '✓' : '✗'}</span> <span style="color:var(--muted)">${esc(code ?? '')}</span>`;
+      }
+
+      function renderEvents() {
+        const list = eventsVisible();
+        els.count.textContent = `${list.length} de ${lastEvents.length}`;
+        const metaOk = list.filter(e => e.meta_response_ok).length;
+        const ga4Ok = list.filter(e => e.ga4_response_ok).length;
+        const bots = list.filter(e => e.is_bot).length;
+        els.summary.innerHTML =
+          `<span class="chip"><b>${list.length}</b> eventos</span>` +
+          `<span class="chip"><b>${metaOk}</b> Meta OK</span>` +
+          `<span class="chip"><b>${ga4Ok}</b> GA4 OK</span>` +
+          `<span class="chip"><b>${bots}</b> bots</span>`;
+        els.erows.innerHTML = list.map((ev, i) => `
+          <tr data-eidx="${i}">
+            <td title="${esc(tFull(ev.timestamp))}">${esc(tTime(ev.timestamp))}</td>
+            <td>Lead${ev.is_bot ? ' <span class="badge">bot</span>' : ''}</td>
+            <td class="ellip" title="${esc(ev.utm_campaign||'')}">${esc(ev.utm_source || '(direto)')}</td>
+            <td>${esc([ev.browser, ev.os].filter(Boolean).join(' / ') || '—')}</td>
+            <td>${platCell(ev.meta_payload_sent, ev.meta_response_ok, ev.meta_status_code)}</td>
+            <td>${platCell(ev.ga4_payload_sent, ev.ga4_response_ok, ev.ga4_status_code)}</td>
+            <td class="ellip mono" title="${esc(ev.event_id||'')}">${esc(ev.event_id || '—')}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="7" class="empty">nenhum evento no período</td></tr>';
+      }
+
+      els.erows.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-eidx]');
+        if (tr) openEventDrawer(eventsVisible()[parseInt(tr.dataset.eidx, 10)]);
+      });
+
+      // Drawer for an event: the exact JSON sent to each platform + the response.
+      function openEventDrawer(ev) {
+        if (!ev) return;
+        els.drawer.classList.add('open'); els.drawer.setAttribute('aria-hidden', 'false');
+        els.dTitle.textContent = `Lead · ${tTime(ev.timestamp)}`;
+        const tag = (k, v) => v ? `<span><b>${k}</b> ${esc(String(v))}</span>` : '';
+        els.dMeta.innerHTML =
+          tag('event_id', ev.event_id) +
+          tag('session', ev.session_id) +
+          tag('origem', ev.utm_source || '(direto)') +
+          tag('campanha', ev.utm_campaign) +
+          tag('navegador', [ev.browser, ev.os].filter(Boolean).join(' / ')) +
+          (ev.fbclid ? tag('fbclid', String(ev.fbclid).slice(0, 24) + '…') : '') +
+          (ev.gclid ? tag('gclid', String(ev.gclid).slice(0, 24) + '…') : '') +
+          (ev.is_bot ? `<span><b>bot</b> ${esc(ev.bot_reason || 'sim')}</span>` : '') +
+          tag('recebido', tFull(ev.timestamp));
+        const section = (title, status, payload, response) => {
+          const sentDot = payload ? `<span class="${status ? 'tick' : ''}" style="${status ? '' : 'color:var(--red)'}">${status ? 'OK' : 'falhou'}</span>` : '<span style="color:var(--muted)">não enviado</span>';
+          return `<h3>${title} — ${sentDot}</h3>` +
+            (payload ? `<div style="padding:0 14px"><div class="status">payload enviado</div><pre class="code">${esc(formatJson(payload))}</pre>` +
+              (response ? `<div class="status">resposta</div><pre class="code">${esc(formatJson(response))}</pre>` : '') + `</div>`
+              : '<div class="empty">nada enviado a esta plataforma</div>');
+        };
+        els.dBody.innerHTML =
+          section('Meta CAPI', ev.meta_response_ok, ev.meta_payload_sent, ev.meta_response_body) +
+          section('GA4 (Measurement Protocol)', ev.ga4_response_ok, ev.ga4_payload_sent, ev.ga4_response_body);
+      }
+
       async function openDrawer(id) {
         els.drawer.classList.add('open'); els.drawer.setAttribute('aria-hidden', 'false');
         els.dTitle.textContent = `lead #${id}`;
-        els.dMeta.textContent = 'carregando…'; els.dFires.innerHTML = ''; els.dBody.innerHTML = '';
+        els.dMeta.textContent = 'carregando…'; els.dBody.innerHTML = '';
         try {
           const { conversation: c, messages, fires } = await api('/api/conversation-detail', { id });
           els.dTitle.textContent = `${c.name || c.phone || ('lead #'+id)}`;
@@ -252,7 +393,7 @@
             `<span><b>status</b> <span class="badge st-${esc(c.status)}">${esc(c.status)}</span></span>` +
             (c.sale_value != null ? `<span><b>venda</b> R$ ${esc(c.sale_value.toFixed(2))}</span>` : '') +
             `<span><b>recebido</b> ${esc(tFull(c.created_at))}</span>`;
-          els.dFires.innerHTML = (fires && fires.length)
+          const firesHtml = (fires && fires.length)
             ? fires.map(f => `<div class="fire">
                   <span><b>${esc(f.event_name)}</b></span>
                   <span>${esc(f.platform)} (${esc(f.click_id_type||'')})</span>
@@ -261,24 +402,30 @@
                   <span>${esc(tFull(f.fired_at))}</span>
                 </div>`).join('')
             : '<div class="empty">nenhum disparo de conversão ainda</div>';
-          els.dBody.innerHTML = (messages && messages.length)
+          const msgsHtml = (messages && messages.length)
             ? messages.map(m => `<div class="msg ${m.direction === 'out' ? 'out' : 'in'}">${esc(m.body)}<span class="t">${esc(tTime(m.at))}</span></div>`).join('')
             : `<div class="empty">sem thread registrada${c.first_message ? ' · 1ª msg: ' + esc(c.first_message) : ''}</div>`;
+          els.dBody.innerHTML = `<h3>Disparos de conversão</h3>${firesHtml}<h3>Conversa</h3>${msgsHtml}`;
         } catch (e) { els.dMeta.textContent = e.message; }
       }
 
       els.dClose.addEventListener('click', () => { els.drawer.classList.remove('open'); els.drawer.setAttribute('aria-hidden', 'true'); });
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') els.dClose.click(); });
 
-      els.refreshBtn.addEventListener('click', load);
+      // re-render the active tab from cached data (cheap, no fetch)
+      function rerender() { return activeTab === 'events' ? renderEvents() : render(); }
+
+      els.tabLeads.addEventListener('click', () => setTab('leads'));
+      els.tabEvents.addEventListener('click', () => setTab('events'));
+      els.refreshBtn.addEventListener('click', refresh);
       els.onlyCtwa.addEventListener('change', render);
       els.statusSel.addEventListener('change', load);
-      els.from.addEventListener('change', load);
+      els.from.addEventListener('change', refresh);
       els.to.addEventListener('change', load);
-      let dbs; els.search.addEventListener('input', () => { clearTimeout(dbs); dbs = setTimeout(render, 200); });
+      let dbs; els.search.addEventListener('input', () => { clearTimeout(dbs); dbs = setTimeout(rerender, 200); });
 
       let timer = null;
-      function applyAuto() { if (timer) { clearInterval(timer); timer = null; } if (els.auto.checked) timer = setInterval(load, 10000); }
+      function applyAuto() { if (timer) { clearInterval(timer); timer = null; } if (els.auto.checked) timer = setInterval(refresh, 10000); }
       els.auto.addEventListener('change', applyAuto);
 
       load(); applyAuto();
