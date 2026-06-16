@@ -57,7 +57,7 @@ export async function onRequestGet(context) {
     });
     return {
       id: r.id,
-      phone: maskPhone(r.wa_phone),
+      phone: formatPhone(r.wa_phone),
       name: r.wa_contact_name || '',
       origin,
       origin_label: originLabel(origin),
@@ -95,11 +95,19 @@ export async function onRequestGet(context) {
 
 function emptySummary() { return []; }
 
-function maskPhone(p) {
+// Internal tool: show the FULL WhatsApp number (BR-formatted) for the attendant.
+function formatPhone(p) {
   if (!p) return '';
   const d = String(p).replace(/\D/g, '');
-  if (d.length < 4) return d;
-  return d.slice(0, -4).replace(/\d/g, '•') + d.slice(-4);
+  if (!d) return '';
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    const mid = rest.length === 9 ? rest.slice(0, 5) : rest.slice(0, 4);
+    const end = rest.length === 9 ? rest.slice(5) : rest.slice(4);
+    return `+55 (${ddd}) ${mid}-${end}`;
+  }
+  return '+' + d;
 }
 
 function resolveRange(rawFrom, rawTo) {

@@ -49,7 +49,7 @@ export async function onRequestGet(context) {
 
     const list = (rows.results || []).map(r => ({
       id: r.id,
-      phone: maskPhone(r.wa_phone),
+      phone: formatPhone(r.wa_phone),
       name: r.wa_contact_name || '',
       platform: r.platform || 'unknown',
       link_method: r.link_method || 'unresolved',
@@ -93,11 +93,20 @@ function dotFor(r) {
   return 'green';
 }
 
-function maskPhone(p) {
+// Internal tool: show the FULL WhatsApp number so the attendant can find the
+// person. Formats BR numbers as +55 (DD) NNNNN-NNNN; falls back to +<digits>.
+function formatPhone(p) {
   if (!p) return '';
   const d = String(p).replace(/\D/g, '');
-  if (d.length < 4) return d;
-  return d.slice(0, -4).replace(/\d/g, '•') + d.slice(-4);
+  if (!d) return '';
+  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+    const ddd = d.slice(2, 4);
+    const rest = d.slice(4);
+    const mid = rest.length === 9 ? rest.slice(0, 5) : rest.slice(0, 4);
+    const end = rest.length === 9 ? rest.slice(5) : rest.slice(4);
+    return `+55 (${ddd}) ${mid}-${end}`;
+  }
+  return '+' + d;
 }
 
 function clampInt(v, def, min, max) {

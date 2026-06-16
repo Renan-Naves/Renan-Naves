@@ -399,6 +399,10 @@
             <div class="seg-btn" data-status="archived">Arquivados</div>
           </div>
         </div>
+        <div class="mb-3">
+          <input id="inbox-search" type="search" autocomplete="off"
+                 class="date-input w-full" placeholder="🔍 Buscar por nome ou número de WhatsApp…">
+        </div>
         <div class="overflow-x-auto -mx-1">
           <table>
             <thead><tr><th>Contato</th><th>Origem</th><th>Campanha</th><th>Status</th><th>Valor</th><th>Ações</th></tr></thead>
@@ -762,10 +766,29 @@
 
   function dotTitle(d){ return d==='red'?'Mensagem nova não lida':d==='yellow'?'Lida — aguardando sua resposta':d==='green'?'Respondido — aguardando o lead':'Sem mensagens'; }
 
-  function renderInbox(d){
+  // search filter (nome OU número de WhatsApp) — client-side sobre os leads carregados
+  var lastInbox=null, inboxSearch='', INBOX_EMPTY_HTML=null;
+  function inboxMatch(l){
+    var q=(inboxSearch||'').trim().toLowerCase();
+    if(!q) return true;
+    if((l.name||'').toLowerCase().indexOf(q)>=0) return true;
+    var qd=q.replace(/\D/g,'');
+    return qd!=='' && (l.phone||'').replace(/\D/g,'').indexOf(qd)>=0;
+  }
+  function renderInbox(d){ lastInbox=d; paintInbox(); }
+  function paintInbox(){
+    var d=lastInbox||{leads:[]};
     var tb=$('rows-inbox'), empty=$('inbox-empty');
-    var rows=d.leads||[];
-    if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
+    if(INBOX_EMPTY_HTML===null) INBOX_EMPTY_HTML=empty.innerHTML;
+    var all=d.leads||[];
+    var rows=all.filter(inboxMatch);
+    if(!rows.length){
+      tb.innerHTML='';
+      empty.innerHTML=(all.length && (inboxSearch||'').trim())
+        ? 'Nenhum lead encontrado para “'+esc(inboxSearch.trim())+'”.'
+        : INBOX_EMPTY_HTML;
+      empty.classList.remove('hidden'); return;
+    }
     empty.classList.add('hidden');
     tb.innerHTML = rows.map(function(l){
       var dot = '<span class="cdot cdot-'+(l.dot||'none')+'" title="'+dotTitle(l.dot)+'"></span>';
@@ -791,7 +814,7 @@
       b.addEventListener('click', function(e){ e.stopPropagation(); lifecycle(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-life')); });
     });
     tb.querySelectorAll('button[data-del]').forEach(function(b){
-      b.addEventListener('click', function(e){ e.stopPropagation(); openDelete(parseInt(b.getAttribute('data-id'),10), b.getAttribute('data-name')); });
+      b.addEventListener('click', function(e){ e.stopPropagation(); openDelete(parseInt(b.getAttribute('data-del'),10), b.getAttribute('data-name')); });
     });
     tb.querySelectorAll('tr.crm-row').forEach(function(tr){
       tr.addEventListener('click', function(e){ if(e.target.closest('button,select,a')) return; openCrm(parseInt(tr.getAttribute('data-row-id'),10)); });
@@ -1073,6 +1096,8 @@
 
     document.querySelectorAll('#inbox-filter .seg-btn').forEach(function(b){ b.addEventListener('click', function(){
       inboxStatus=b.getAttribute('data-status'); document.querySelectorAll('#inbox-filter .seg-btn').forEach(function(x){ x.classList.toggle('active', x===b); }); loadInbox(); }); });
+
+    $('inbox-search').addEventListener('input', function(){ inboxSearch=this.value; paintInbox(); });
 
     $('modal-cancel').addEventListener('click', closeMark);
     $('modal').addEventListener('click', function(e){ if(e.target===$('modal')) closeMark(); });
