@@ -46,21 +46,22 @@ Enquanto isso não sai, dá para conectar e testar só contra conta de teste.
    use_proto_plus: true
    ```
 
-3. **Criar `.mcp.json`** na raiz (gitignorado) — config do MCP para o Claude Code:
-   ```json
-   {
-     "mcpServers": {
-       "google-ads": {
-         "command": "uv",
-         "args": ["run", "--directory", "b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp", "-m", "ads_mcp.server"],
-         "env": { "GOOGLE_ADS_CREDENTIALS": "b:/One Tree Eitch/Clientes/RENAN NAVES/google-ads.yaml" }
-       }
-     }
-   }
+3. **Registrar no Claude Code em USER SCOPE** (global — disponível em TODOS os seus projetos,
+   não só neste repo). Rodar uma vez:
+   ```sh
+   claude mcp add google-ads --scope user \
+     --env GOOGLE_ADS_CREDENTIALS="b:/One Tree Eitch/Clientes/RENAN NAVES/google-ads.yaml" \
+     -- uv run --directory "b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp" -m ads_mcp.server
    ```
+   Isso grava em `~/.claude.json` (config global do usuário), igual a ter o servidor "no Claude
+   como um todo". (Windows: se `uv` não for encontrado pelo Claude, prefixe o comando com
+   `cmd /c` ou use o caminho absoluto do `uv.exe`.)
 
-4. **Reabrir o Claude Code** neste projeto e aprovar o servidor `google-ads` quando perguntado
-   (`/mcp` lista o status). Testar com algo como "liste as contas acessíveis" (`list_accessible_customers`).
+   **Alternativa — só este projeto (project scope):** copiar `.mcp.json.example` para `.mcp.json`
+   na raiz (gitignorado). Use isto se NÃO quiser o servidor global.
+
+4. **Reabrir o Claude Code** e aprovar o servidor `google-ads` quando perguntado (`/mcp` lista o
+   status). Testar com algo como "liste as contas acessíveis" (`list_accessible_customers`).
 
 ## Notas
 
