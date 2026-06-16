@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inspector CTWA · Dr. Renan Naves</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #0f1115; --fg: #e6e6e6; --muted: #8a8f98;
+        --row: #161922; --row-alt: #11141c; --row-hover: #1d2230;
+        --accent: #7dd3fc; --gold: #fbbf24; --green: #34d399; --red: #f87171;
+        --border: #1f2330;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #fafafa; --fg: #1a1a1a; --muted: #666;
+          --row: #fff; --row-alt: #f3f3f3; --row-hover: #e6f0fa;
+          --accent: #0369a1; --gold: #b45309; --green: #047857; --red: #b91c1c;
+          --border: #d4d4d4;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 13px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+      header { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
+      header h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; }
+      .status { color: var(--muted); font-size: 12px; }
+      .status.err { color: var(--red); }
+      .count { color: var(--muted); margin-left: auto; }
+      .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+      .filters label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+      .filters input[type=text], .filters input[type=date], .filters select {
+        background: var(--row); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font: inherit;
+      }
+      .filters input[type=text] { width: 150px; }
+      button.btn { background: var(--row); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; font: inherit; cursor: pointer; }
+      button.btn:hover { background: var(--row-hover); }
+      .summary { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 16px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); }
+      .summary .chip { background: var(--row); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+      .summary .chip b { color: var(--fg); }
+
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+      th { position: sticky; top: 49px; background: var(--bg); color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+      tbody tr { background: var(--row); cursor: pointer; }
+      tbody tr:nth-child(even) { background: var(--row-alt); }
+      tbody tr:hover { background: var(--row-hover); }
+      td.ellip { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; background: var(--row); color: var(--muted); border: 1px solid var(--border); }
+      .badge.meta, .badge.ctwa { background: var(--gold); color: #1a1a1a; border-color: transparent; }
+      .badge.google { background: var(--accent); color: #06212b; border-color: transparent; }
+      .badge.organic { background: var(--green); color: #06281e; border-color: transparent; }
+      .badge.unknown { background: var(--muted); color: var(--bg); border-color: transparent; }
+      .badge.st-new { background: var(--accent); color: #06212b; border-color: transparent; }
+      .badge.st-qualified { background: var(--gold); color: #1a1a1a; border-color: transparent; }
+      .badge.st-sale { background: var(--green); color: #06281e; border-color: transparent; }
+      .badge.st-lost { background: var(--red); color: #2a0a0a; border-color: transparent; }
+      .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+      .dot.red { background: var(--red); } .dot.yellow { background: var(--gold); } .dot.green { background: var(--green); } .dot.none { background: var(--border); }
+      .tick { color: var(--green); font-weight: 700; }
+
+      .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 96vw); background: var(--bg); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform 160ms ease; display: flex; flex-direction: column; z-index: 20; }
+      .drawer.open { transform: translateX(0); }
+      .drawer header { position: static; border-bottom: 1px solid var(--border); padding: 10px 14px; }
+      .drawer .close { margin-left: auto; background: transparent; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; }
+      .drawer .meta { padding: 8px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; gap: 14px; flex-wrap: wrap; }
+      .drawer .meta b { color: var(--fg); font-weight: 500; }
+      .drawer h3 { margin: 0; padding: 10px 14px 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+      .drawer .body { flex: 1; overflow: auto; padding: 8px 14px; }
+      .msg { margin: 6px 0; padding: 6px 10px; border-radius: 8px; max-width: 80%; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+      .msg.in { background: var(--row); border: 1px solid var(--border); margin-right: auto; }
+      .msg.out { background: var(--accent); color: #06212b; margin-left: auto; }
+      .msg .t { display: block; font-size: 10px; opacity: 0.7; margin-top: 2px; }
+      .fire { border-top: 1px dashed var(--border); padding: 8px 14px; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; display: flex; gap: 12px; flex-wrap: wrap; }
+      .fire b { color: var(--fg); } .fire .ok { color: var(--green); } .fire .bad { color: var(--red); }
+      .empty { color: var(--muted); padding: 10px 14px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Inspector CTWA · Dr. Renan Naves</h1>
+      <span class="status" id="status">iniciando…</span>
+      <span class="count" id="count"></span>
+    </header>
+
+    <div class="filters">
+      <label><input type="checkbox" id="onlyCtwa" checked /> só CTWA (Meta)</label>
+      <label>status
+        <select id="statusSel">
+          <option value="">todos</option>
+          <option value="new">novo</option>
+          <option value="qualified">qualificado</option>
+          <option value="sale">venda</option>
+          <option value="lost">perdido</option>
+        </select>
+      </label>
+      <label>busca <input type="text" id="search" placeholder="nome ou telefone" /></label>
+      <label>de <input type="date" id="from" /></label>
+      <label>até <input type="date" id="to" /></label>
+      <label><input type="checkbox" id="auto" checked /> auto (10s)</label>
+      <button class="btn" id="refreshBtn">atualizar</button>
+    </div>
+
+    <div class="summary" id="summary"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>recebido</th>
+          <th>contato</th>
+          <th>telefone</th>
+          <th>origem</th>
+          <th>campanha</th>
+          <th>anúncio</th>
+          <th>ctwa</th>
+          <th>status</th>
+          <th>valor</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <div class="drawer" id="drawer" aria-hidden="true">
+      <header>
+        <strong id="dTitle">lead</strong>
+        <button class="close" id="dClose" aria-label="fechar">×</button>
+      </header>
+      <div class="meta" id="dMeta"></div>
+      <h3>Disparos de conversão</h3>
+      <div id="dFires"></div>
+      <h3>Conversa</h3>
+      <div class="body" id="dBody"></div>
+    </div>
+
+    <script>
+      const KEY_STORE = 'renan.dash.key';
+      function getKey() {
+        const fromUrl = new URLSearchParams(location.search).get('key');
+        if (fromUrl) { sessionStorage.setItem(KEY_STORE, fromUrl); return fromUrl; }
+        let k = sessionStorage.getItem(KEY_STORE);
+        if (!k) { k = (prompt('DASH_KEY') || '').trim(); if (k) sessionStorage.setItem(KEY_STORE, k); }
+        return k;
+      }
+      function clearKey() { sessionStorage.removeItem(KEY_STORE); }
+
+      async function api(path, params) {
+        const qs = new URLSearchParams({ key: getKey(), ...(params || {}) });
+        const r = await fetch(`${path}?${qs}`);
+        if (r.status === 401) { clearKey(); throw new Error('não autorizado — recarregue e informe a DASH_KEY'); }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }
+
+      const els = {
+        rows: document.getElementById('rows'), count: document.getElementById('count'),
+        status: document.getElementById('status'), summary: document.getElementById('summary'),
+        onlyCtwa: document.getElementById('onlyCtwa'), statusSel: document.getElementById('statusSel'),
+        search: document.getElementById('search'), from: document.getElementById('from'), to: document.getElementById('to'),
+        auto: document.getElementById('auto'), refreshBtn: document.getElementById('refreshBtn'),
+        drawer: document.getElementById('drawer'), dTitle: document.getElementById('dTitle'),
+        dMeta: document.getElementById('dMeta'), dFires: document.getElementById('dFires'),
+        dBody: document.getElementById('dBody'), dClose: document.getElementById('dClose'),
+      };
+
+      function setStatus(t, err) { els.status.textContent = t; els.status.classList.toggle('err', !!err); }
+      function esc(s) { return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+      function tTime(ts) { if (!ts) return ''; const d = new Date(ts * 1000); const p = n => String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+      function tFull(ts) { return ts ? new Date(ts * 1000).toLocaleString('pt-BR') : ''; }
+      function originBadge(p, lm) {
+        const label = lm === 'ctwa' ? 'CTWA' : (p || 'unknown');
+        const cls = lm === 'ctwa' ? 'ctwa' : (['meta','google','organic'].includes(p) ? p : 'unknown');
+        return `<span class="badge ${cls}">${esc(label)}</span>`;
+      }
+
+      let lastLeads = [];
+
+      async function load() {
+        setStatus('carregando…');
+        const params = { limit: '300' };
+        if (els.statusSel.value) params.status = els.statusSel.value;
+        if (els.from.value) params.from = els.from.value;
+        if (els.to.value) params.to = els.to.value;
+        try {
+          const { leads, count } = await api('/api/leads-inbox', params);
+          lastLeads = leads || [];
+          render();
+          setStatus(`atualizado ${new Date().toLocaleTimeString('pt-BR')}` + ( (leads||[]).length ? '' : ' · sem leads no período'));
+        } catch (e) { setStatus(e.message, true); }
+      }
+
+      function visible() {
+        const term = els.search.value.trim().toLowerCase();
+        return lastLeads.filter(l => {
+          if (els.onlyCtwa.checked && !(l.link_method === 'ctwa' || l.platform === 'meta')) return false;
+          if (term && !((l.name||'').toLowerCase().includes(term) || (l.phone||'').toLowerCase().includes(term))) return false;
+          return true;
+        });
+      }
+
+      function render() {
+        const list = visible();
+        els.count.textContent = `${list.length} de ${lastLeads.length}`;
+        // summary
+        const ctwa = list.filter(l => l.link_method === 'ctwa' || l.platform === 'meta');
+        const qual = list.filter(l => l.is_qualified).length;
+        const sales = list.filter(l => l.status === 'sale');
+        const revenue = sales.reduce((s, l) => s + (l.sale_value || 0), 0);
+        els.summary.innerHTML =
+          `<span class="chip"><b>${list.length}</b> leads</span>` +
+          `<span class="chip"><b>${ctwa.length}</b> CTWA/Meta</span>` +
+          `<span class="chip"><b>${ctwa.filter(l=>l.attributable).length}</b> com ctwa_clid</span>` +
+          `<span class="chip"><b>${qual}</b> qualificados</span>` +
+          `<span class="chip"><b>${sales.length}</b> vendas</span>` +
+          `<span class="chip">R$ <b>${revenue.toFixed(2)}</b></span>`;
+        els.rows.innerHTML = list.map(l => `
+          <tr data-id="${l.id}">
+            <td><span class="dot ${esc(l.dot||'none')}" title="${esc(l.dot||'')}"></span></td>
+            <td title="${esc(tFull(l.created_at))}">${esc(tTime(l.created_at))}</td>
+            <td>${esc(l.name || '—')}</td>
+            <td>${esc(l.phone || '')}</td>
+            <td>${originBadge(l.platform, l.link_method)}</td>
+            <td class="ellip" title="${esc(l.utm_campaign||'')}">${esc(l.utm_campaign || '—')}</td>
+            <td class="ellip" title="${esc(l.utm_content||'')}">${esc(l.utm_content || '—')}</td>
+            <td>${l.attributable && (l.link_method==='ctwa'||l.platform==='meta') ? '<span class="tick">✓</span>' : '<span style="color:var(--muted)">—</span>'}</td>
+            <td><span class="badge st-${esc(l.status)}">${esc(l.status)}</span></td>
+            <td>${l.sale_value != null ? 'R$ ' + esc(l.sale_value.toFixed(2)) : ''}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="10" class="empty">nenhum lead com os filtros atuais</td></tr>';
+      }
+
+      els.rows.addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (tr) openDrawer(tr.dataset.id);
+      });
+
+      async function openDrawer(id) {
+        els.drawer.classList.add('open'); els.drawer.setAttribute('aria-hidden', 'false');
+        els.dTitle.textContent = `lead #${id}`;
+        els.dMeta.textContent = 'carregando…'; els.dFires.innerHTML = ''; els.dBody.innerHTML = '';
+        try {
+          const { conversation: c, messages, fires } = await api('/api/conversation-detail', { id });
+          els.dTitle.textContent = `${c.name || c.phone || ('lead #'+id)}`;
+          els.dMeta.innerHTML =
+            `<span><b>telefone</b> ${esc(c.phone||'')}</span>` +
+            `<span><b>origem</b> ${originBadge(c.platform, c.link_method)}</span>` +
+            (c.ctwa_clid ? `<span><b>ctwa_clid</b> ${esc(c.ctwa_clid.slice(0,28))}…</span>` : '') +
+            (c.gclid ? `<span><b>gclid</b> ${esc(c.gclid.slice(0,20))}…</span>` : '') +
+            (c.utm_campaign ? `<span><b>campanha</b> ${esc(c.utm_campaign)}</span>` : '') +
+            (c.utm_content ? `<span><b>anúncio</b> ${esc(c.utm_content)}</span>` : '') +
+            (c.utm_term ? `<span><b>termo</b> ${esc(c.utm_term)}</span>` : '') +
+            `<span><b>status</b> <span class="badge st-${esc(c.status)}">${esc(c.status)}</span></span>` +
+            (c.sale_value != null ? `<span><b>venda</b> R$ ${esc(c.sale_value.toFixed(2))}</span>` : '') +
+            `<span><b>recebido</b> ${esc(tFull(c.created_at))}</span>`;
+          els.dFires.innerHTML = (fires && fires.length)
+            ? fires.map(f => `<div class="fire">
+                  <span><b>${esc(f.event_name)}</b></span>
+                  <span>${esc(f.platform)} (${esc(f.click_id_type||'')})</span>
+                  <span class="${f.response_ok ? 'ok':'bad'}">${f.response_ok ? 'OK' : 'falhou'} ${f.status_code ?? ''}</span>
+                  ${f.value != null ? `<span>${esc(f.currency)} ${esc(String(f.value))}</span>` : ''}
+                  <span>${esc(tFull(f.fired_at))}</span>
+                </div>`).join('')
+            : '<div class="empty">nenhum disparo de conversão ainda</div>';
+          els.dBody.innerHTML = (messages && messages.length)
+            ? messages.map(m => `<div class="msg ${m.direction === 'out' ? 'out' : 'in'}">${esc(m.body)}<span class="t">${esc(tTime(m.at))}</span></div>`).join('')
+            : `<div class="empty">sem thread registrada${c.first_message ? ' · 1ª msg: ' + esc(c.first_message) : ''}</div>`;
+        } catch (e) { els.dMeta.textContent = e.message; }
+      }
+
+      els.dClose.addEventListener('click', () => { els.drawer.classList.remove('open'); els.drawer.setAttribute('aria-hidden', 'true'); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') els.dClose.click(); });
+
+      els.refreshBtn.addEventListener('click', load);
+      els.onlyCtwa.addEventListener('change', render);
+      els.statusSel.addEventListener('change', load);
+      els.from.addEventListener('change', load);
+      els.to.addEventListener('change', load);
+      let dbs; els.search.addEventListener('input', () => { clearTimeout(dbs); dbs = setTimeout(render, 200); });
+
+      let timer = null;
+      function applyAuto() { if (timer) { clearInterval(timer); timer = null; } if (els.auto.checked) timer = setInterval(load, 10000); }
+      els.auto.addEventListener('change', applyAuto);
+
+      load(); applyAuto();
+    </script>
+  </body>
+</html>
