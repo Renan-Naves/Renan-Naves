@@ -40,7 +40,16 @@ export async function sendMetaMessagingConversion({
     return { skipped: 'no ctwa_clid' };
   }
 
+  // Meta REQUIRES a page_id or whatsapp_business_account_id in user_data for
+  // business_messaging/whatsapp events (else: subcode 2804116 "Falta a
+  // identificação da Página ou da conta do WhatsApp Business"). The WABA id is
+  // the natural one for the WhatsApp channel; page_id is accepted as fallback.
   const userData = { ctwa_clid: ctwaClid };
+  if (env.META_WA_BUSINESS_ACCOUNT_ID) {
+    userData.whatsapp_business_account_id = String(env.META_WA_BUSINESS_ACCOUNT_ID);
+  } else if (env.META_WA_PAGE_ID) {
+    userData.page_id = String(env.META_WA_PAGE_ID);
+  }
   const hashedPh = await sha256(normalizePhone(phone, env.DEFAULT_COUNTRY_CODE));
   if (hashedPh) userData.ph = [hashedPh];
 
