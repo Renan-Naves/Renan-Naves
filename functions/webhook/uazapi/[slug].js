@@ -35,6 +35,12 @@ export async function onRequestPost(context) {
   let payload;
   try { payload = await request.json(); } catch (_) { return json({ error: 'Invalid JSON' }, 400); }
 
+  // TEMP DIAGNOSTIC (remove after CTWA shape confirmed): capture the raw inbound
+  // payload so we can confirm the uazapi CTWA `referral`/`ctwa_clid` field path
+  // against a real ad-click message. Best-effort — never blocks the webhook.
+  // Read it back via GET /api/wa-debug?key=<DASH_KEY>&ref=1.
+  try { await captureRaw(env, payload); } catch (_) { /* diagnostic must not 500 the webhook */ }
+
   const msg = normalise(payload);
   if (!msg || !msg.chatId) {
     // connection / qrcode / status events (no chat) land here harmlessly
@@ -133,7 +139,12 @@ function normalise(p) {
   const chatId = m.chatid || m.chatId || m.chat_id || m.from || m.key?.remoteJid || p.chatId || '';
   const text = m.text || m.content || m.body || m.caption || m.message?.conversation
     || m.message?.extendedTextMessage?.text || '';
-  const phone = String(m.sender || m.from || m.author || chatId || '').replace(/[^0-9]/g, '');
+  // The dialable phone lives in the @s.whatsapp.net / @c.us JID (chatid). uazapi
+  // v2's `sender` is frequently the privacy @lid (a non-dialable WhatsApp id), so
+  // prefer the JID user-part and only fall back to sender/from when chatid isn't
+  // a phone JID (e.g. an @lid chat).
+  const phoneJid = /@(?:s\.whatsapp\.net|c\.us)$/i.test(chatId) ? chatId.split('@')[0] : '';
+  const phone = String(phoneJid || m.sender || m.from || m.author || '').replace(/[^0-9]/g, '');
   const name = m.senderName || m.pushName || m.notifyName || m.contact?.name || '';
   // skip our own / API-sent messages (uazapi: fromMe, wasSentByApi)
   const fromMe = !!(m.fromMe || m.fromme || m.wasSentByApi || m.key?.fromMe);
@@ -197,6 +208,20 @@ async function resolveAttribution(env, msg) {
   }
 
   return base;
+}
+
+// TEMP DIAGNOSTIC (remove with the call site above once the CTWA shape is
+// confirmed). Stores the raw inbound payload in wa_raw_debug, flagging rows that
+// look like they carry an ad referral so the CTWA first-message is easy to find.
+async function captureRaw(env, payload) {
+  if (!env.DB) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS wa_raw_debug (id INTEGER PRIMARY KEY AUTOINCREMENT, raw TEXT, has_ref INTEGER, created_at INTEGER)'
+  ).run();
+  const raw = JSON.stringify(payload);
+  const hasRef = /ctwa|external_?ad_?reply|referral|source_id|sourceUrl|conversion_source|click_id/i.test(raw) ? 1 : 0;
+  await env.DB.prepare('INSERT INTO wa_raw_debug (raw, has_ref, created_at) VALUES (?, ?, ?)')
+    .bind(raw.slice(0, 8000), hasRef, Math.floor(Date.now() / 1000)).run();
 }
 
 function json(body, status = 200) {
