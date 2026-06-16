@@ -29,7 +29,7 @@
 const GRAPH_VERSION = 'v25.0';
 
 export async function sendMetaMessagingConversion({
-  env, eventName, ctwaClid, phone, valueCents, currency, eventId, eventTime,
+  env, eventName, ctwaClid, phone, valueCents, currency, eventId, eventTime, testEventCode,
 }) {
   const pixelId = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
   const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
@@ -61,10 +61,11 @@ export async function sendMetaMessagingConversion({
       ...(Object.keys(customData).length ? { custom_data: customData } : {}),
     }],
   };
-  // Test Events code for the messaging dataset (falls back to the web one).
-  const testEventCode = env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE;
-  if (testEventCode) {
-    payload.test_event_code = testEventCode;
+  // Test Events code for the messaging dataset: per-request override (QA), then
+  // the WA-specific env, then the web one.
+  const resolvedTestCode = testEventCode || env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE;
+  if (resolvedTestCode) {
+    payload.test_event_code = resolvedTestCode;
   }
 
   const payloadJson = JSON.stringify(payload);
