@@ -90,3 +90,9 @@ URL: `/dashboard/`
   (🔴/🟡/🟢), pop-up de detalhes na Atribuição (UTM), arquivar/desarquivar (aba "Arquivados") e
   excluir (soft-delete com confirmação digitando o nome). Novas migrations `0022_wa_messages` +
   `0023_wa_conversations_crm`; novos endpoints `conversation-detail` + `send-message`.
+- 2026-06-16 — receita & ROAS na aba Resultados (receita total / tráfego / orgânico + ROAS e
+  lucro); auto-refresh "ao vivo" (10s) na aba WhatsApp; **grafo de Indicações** na aba Resultados
+  (indicador→indicado): ao marcar origem "Indicação" pergunta **quem indicou** (nome+WhatsApp);
+  a lista, ordenada pelo indicador, cruza o WhatsApp do indicador com a base p/ trazer origem +
+  receita dele ao lado da receita do indicado. Migrations `0024_wa_conversations_referral` +
+  `0025_wa_conversations_referral_by`; endpoint `/api/referrals`.

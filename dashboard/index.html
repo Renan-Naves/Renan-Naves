@@ -318,6 +318,31 @@
           <div id="kw-note" class="text-xs mt-3" style="color:var(--muted)"></div>
         </section>
       </div>
+
+      <!-- indicações (indicador → indicado) -->
+      <section class="card p-5 fade-in mt-7">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <div class="font-semibold head">Indicações <span style="color:var(--muted)">(quem indica → novo paciente)</span></div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">Ordenado por quem indicou · receita conferida pelo nº de WhatsApp na base</div>
+          </div>
+          <div class="text-xs" style="color:var(--muted)">Receita gerada por indicação: <span id="ref-revenue" class="mono">—</span></div>
+        </div>
+        <div class="overflow-x-auto -mx-1">
+          <table>
+            <thead><tr>
+              <th>Indicador (quem indicou)</th><th>Origem</th><th>Receita indicador</th>
+              <th>Indicado (novo paciente)</th><th>Receita indicado</th><th>Status</th>
+            </tr></thead>
+            <tbody id="rows-ref"><tr><td colspan="6" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="ref-empty" class="hidden text-sm mt-4 p-4 rounded-xl" style="background:var(--card-2);color:var(--dim)">
+          Nenhuma indicação marcada ainda. Na aba <strong>Atribuição (UTM)</strong>, marque a origem de um lead como
+          <strong>Indicação</strong> e informe <strong>quem indicou</strong> (nome + WhatsApp). A linha aparece aqui,
+          com a origem e a receita do indicador conferidas pela base.
+        </div>
+      </section>
     </div>
 
     <!-- ======================= TAB: WHATSAPP ======================= -->
@@ -525,6 +550,22 @@
   </div>
 </div>
 
+<!-- ============================ REFERRAL (quem indicou) MODAL ============================ -->
+<div id="ref-modal" class="modal-bg hidden" style="z-index:80">
+  <div class="card w-full max-w-md p-6 fade-in">
+    <div class="font-semibold head text-lg mb-1">Indicação — quem indicou?</div>
+    <div class="text-sm mb-4" style="color:var(--dim)">Registre <strong>quem indicou</strong> este paciente. Informe o WhatsApp do indicador para puxar automaticamente a origem e a receita dele da base.</div>
+    <label class="section-label block mb-1">Nome de quem indicou</label>
+    <input id="ref-by-name" type="text" class="date-input w-full mb-3" placeholder="Ex.: Paulo Silva" autocomplete="off">
+    <label class="section-label block mb-1">WhatsApp de quem indicou <span style="text-transform:none;font-weight:400">(opcional, recomendado)</span></label>
+    <input id="ref-by-phone" type="text" class="date-input w-full" placeholder="Ex.: 5511999998888" autocomplete="off" inputmode="numeric">
+    <div class="flex justify-end gap-2 mt-5">
+      <button id="ref-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="ref-ok" class="btn btn-primary">Salvar indicação</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -583,7 +624,7 @@
 
   // -------- fetch --------
   function qs(){ return 'key='+encodeURIComponent(KEY)+'&from='+encodeURIComponent(state.from)+'&to='+encodeURIComponent(state.to); }
-  function loadAll(){ loadReport(); loadInbox(); if(tab==='atribuicao') loadAttribution(); }
+  function loadAll(){ loadReport(); loadInbox(); loadReferrals(); if(tab==='atribuicao') loadAttribution(); }
 
   function loadReport(){
     barStart(); $('app').classList.add('is-loading');
@@ -787,17 +828,66 @@
       var cont=esc(r.utm_content||'—')+(r.utm_term?(' · '+esc(r.utm_term)):'');
       return '<tr><td>'+contact+'</td><td>'+badge+'</td><td class="text-xs">'+fonte+'</td><td>'+esc(r.utm_campaign||'—')+'</td><td class="text-xs">'+cont+'</td><td>'+statusPill(r.status)+'</td><td>'+originSelectHtml(r)+'</td></tr>';
     }).join('');
-    tb.querySelectorAll('select.origin-tag').forEach(function(s){ s.addEventListener('change', function(){ tagOrigin(parseInt(s.getAttribute('data-id'),10), s.value); }); });
+    tb.querySelectorAll('select.origin-tag').forEach(function(s){ s.addEventListener('change', function(){
+      var id=parseInt(s.getAttribute('data-id'),10), v=s.value;
+      // tagging as "Indicação" asks for the new patient's name first
+      if(v==='indicacao'){ openReferralName(id); } else { tagOrigin(id, v); }
+    }); });
     tb.querySelectorAll('span.lead-detail').forEach(function(el){ el.addEventListener('click', function(){ openDetail(parseInt(el.getAttribute('data-id'),10)); }); });
   }
-  function tagOrigin(id, origin){
-    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:'origin', origin:origin }) })
-      .then(function(r){ return r.json(); }).then(function(){ loadAttribution(); }).catch(function(){});
+  function tagOrigin(id, origin, extra){
+    var body={ conversation_id:id, action:'origin', origin:origin };
+    if(extra) for(var k in extra){ if(extra.hasOwnProperty(k)) body[k]=extra[k]; }
+    fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
+      .then(function(r){ return r.json(); }).then(function(){ loadAttribution(); loadReferrals(); }).catch(function(){});
   }
   function loadAttribution(){
     fetch(ATTR+'?'+qs()+'&origin='+encodeURIComponent(attrFilter)).then(function(r){
       if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
     }).then(renderAttr).catch(function(){});
+  }
+
+  // -------- indicações (indicador → indicado) --------
+  function loadReferrals(){
+    fetch('/api/referrals?key='+encodeURIComponent(KEY)).then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; } if(!r.ok) throw new Error('Erro '+r.status); return r.json();
+    }).then(renderReferrals).catch(function(){});
+  }
+  function renderReferrals(d){
+    var tb=$('rows-ref'), empty=$('ref-empty'), rows=d.referrals||[];
+    $('ref-revenue').textContent = brl(d.total_referred_revenue||0);
+    if(!rows.length){ tb.innerHTML=''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    tb.innerHTML=rows.map(function(r){
+      var who=r.indicador||{}, lead=r.indicado||{};
+      // indicador
+      var whoName = '<div>'+esc(who.name||'(não informado)')+'</div>'
+        + (who.phone?'<div class="text-xs mono" style="color:var(--muted)">'+esc(who.phone)+'</div>':'');
+      var whoOrigin = who.linked
+        ? '<span class="pill '+originPillClass(who.origin)+'">'+esc(who.origin_label||who.origin)+'</span>'
+        : '<span class="pill pill-muted" title="Sem WhatsApp do indicador para cruzar com a base">não rastreado</span>';
+      var whoRev = (who.revenue!=null) ? brl(who.revenue) : '—';
+      // indicado
+      var leadName = '<span class="lead-detail" data-id="'+lead.id+'" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px">'+esc(lead.name||'(sem nome)')+'</span>'
+        + (lead.conflict?' <span class="pill pill-amber" title="Este número também tem um toque pago/rastreado na base — confira se a origem real é mesmo indicação">conferir</span>':'');
+      var leadCell = '<div>'+leadName+'</div>'
+        + (lead.phone?'<div class="text-xs mono" style="color:var(--muted)">'+esc(lead.phone)+'</div>':'');
+      var leadRev = (lead.revenue!=null) ? brl(lead.revenue) : '—';
+      return '<tr><td>'+whoName+'</td><td>'+whoOrigin+'</td><td class="mono">'+whoRev+'</td>'
+        + '<td>'+leadCell+'</td><td class="mono">'+leadRev+'</td><td>'+statusPill(lead.status)+'</td></tr>';
+    }).join('');
+    tb.querySelectorAll('span.lead-detail').forEach(function(el){ el.addEventListener('click', function(){ openDetail(parseInt(el.getAttribute('data-id'),10)); }); });
+  }
+
+  // referral modal: "quem indicou?" (ao marcar origem = Indicação)
+  var refTagId=null;
+  function openReferralName(id){ refTagId=id; $('ref-by-name').value=''; $('ref-by-phone').value=''; $('ref-modal').classList.remove('hidden'); $('ref-by-name').focus(); }
+  function closeReferralName(){ $('ref-modal').classList.add('hidden'); refTagId=null; if(tab==='atribuicao') loadAttribution(); }
+  function submitReferralName(){
+    if(refTagId==null) return; var id=refTagId; refTagId=null;
+    var name=$('ref-by-name').value.trim(), phone=$('ref-by-phone').value.replace(/\D/g,'');
+    $('ref-modal').classList.add('hidden');
+    tagOrigin(id, 'indicacao', { referral_by_name:name, referral_by_phone:phone });
   }
 
   // -------- mark modal --------
@@ -827,7 +917,7 @@
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(res){ $('modal-ok').disabled=false;
         if(!res.ok){ var e=$('modal-error'); e.textContent=res.j.error||'Falha ao marcar.'; e.classList.remove('hidden'); return; }
-        closeMark(); loadInbox(); loadReport(); if(crmId!=null) loadCrm(); if(tab==='atribuicao') loadAttribution();
+        closeMark(); loadInbox(); loadReport(); if(crmId!=null) loadCrm(); if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); }
         if(res.j.fire && res.j.fire.fired===false && res.j.fire.reason){ showNotice('Marcado, mas a conversão não foi enviada: '+res.j.fire.reason); }
       }).catch(function(){ $('modal-ok').disabled=false; var e=$('modal-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); });
   }
@@ -924,7 +1014,7 @@
   function lifecycle(id, action){
     fetch(MARK+'?key='+encodeURIComponent(KEY),{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ conversation_id:id, action:action }) })
       .then(function(r){ return r.json(); })
-      .then(function(){ loadInbox(); loadReport(); if(tab==='atribuicao') loadAttribution(); if(crmId===id) loadCrm(); if(detailId===id) openDetail(id); })
+      .then(function(){ loadInbox(); loadReport(); if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); } if(crmId===id) loadCrm(); if(detailId===id) openDetail(id); })
       .catch(function(){});
   }
 
@@ -950,7 +1040,7 @@
         if(!res.ok){ var e=$('del-error'); e.textContent=res.j.error||'Falha ao excluir.'; e.classList.remove('hidden'); ok.disabled=false; ok.style.opacity='1'; return; }
         closeDelete();
         if(crmId===id) closeCrm(); if(detailId===id) closeDetail();
-        loadInbox(); loadReport(); if(tab==='atribuicao') loadAttribution();
+        loadInbox(); loadReport(); if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); }
       }).catch(function(){ var e=$('del-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); ok.disabled=false; ok.style.opacity='1'; });
   }
   function closeDelete(){ $('del-modal').classList.add('hidden'); delId=null; }
@@ -973,7 +1063,7 @@
       $('tab-resultados').classList.toggle('hidden', tab!=='resultados'); $('tab-whatsapp').classList.toggle('hidden', tab!=='whatsapp');
       $('tab-atribuicao').classList.toggle('hidden', tab!=='atribuicao');
       if(tab==='resultados' && lastReport) renderChart(lastReport.daily||[]);
-      if(tab==='atribuicao') loadAttribution(); }); });
+      if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); } }); });
 
     $('origin-filter').addEventListener('change', function(){ attrFilter=$('origin-filter').value; loadAttribution(); });
 
@@ -1011,6 +1101,13 @@
     $('del-input').addEventListener('input', delCheck);
     $('del-input').addEventListener('keydown', function(e){ if(e.key==='Enter' && !$('del-ok').disabled) submitDelete(); });
     $('del-ok').addEventListener('click', submitDelete);
+
+    // referral-name modal
+    $('ref-cancel').addEventListener('click', closeReferralName);
+    $('ref-modal').addEventListener('click', function(e){ if(e.target===$('ref-modal')) closeReferralName(); });
+    $('ref-by-name').addEventListener('keydown', function(e){ if(e.key==='Enter') $('ref-by-phone').focus(); });
+    $('ref-by-phone').addEventListener('keydown', function(e){ if(e.key==='Enter') submitReferralName(); });
+    $('ref-ok').addEventListener('click', submitReferralName);
 
     var maxDay=todayYmd(); $('date-from').max=maxDay; $('date-to').max=maxDay;
   }

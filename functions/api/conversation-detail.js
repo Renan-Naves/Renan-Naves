@@ -91,6 +91,7 @@ export async function onRequestGet(context) {
       fbc: conv.fbc || '',
       fbp: conv.fbp || '',
       manual_origin: conv.manual_origin || '',
+      referral_name: conv.referral_name || '',
       utm_source: conv.utm_source || '',
       utm_medium: conv.utm_medium || '',
       utm_campaign: conv.utm_campaign || '',

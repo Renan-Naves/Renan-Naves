@@ -45,10 +45,24 @@ export async function onRequestPost(context) {
   if (action === 'origin') {
     const origin = String(body.origin || '').trim();
     if (origin && !isValidOrigin(origin)) return json({ error: 'invalid origin' }, 400);
+    // Optional referral fields — set ONLY when the key is present in the body
+    // (so a plain origin change doesn't wipe them). Column names are a fixed
+    // allowlist (not user input), so interpolating them into SET is safe.
+    const optional = {
+      referral_name: v => String(v || '').trim().slice(0, 120) || null,        // indicado (novo paciente) clean name
+      referral_by_name: v => String(v || '').trim().slice(0, 120) || null,      // indicador (quem indicou) name
+      referral_by_phone: v => String(v || '').replace(/\D/g, '').slice(0, 20) || null, // indicador WhatsApp (digits)
+    };
+    const sets = ['manual_origin = ?'];
+    const binds = [origin || null];
+    for (const [col, clean] of Object.entries(optional)) {
+      if (Object.prototype.hasOwnProperty.call(body, col)) { sets.push(`${col} = ?`); binds.push(clean(body[col])); }
+    }
+    sets.push('updated_at = ?'); binds.push(Math.floor(Date.now() / 1000));
+    binds.push(conversationId);
     try {
-      const res = await env.DB.prepare(
-        'UPDATE wa_conversations SET manual_origin = ?, updated_at = ? WHERE id = ?'
-      ).bind(origin || null, Math.floor(Date.now() / 1000), conversationId).run();
+      const res = await env.DB.prepare(`UPDATE wa_conversations SET ${sets.join(', ')} WHERE id = ?`)
+        .bind(...binds).run();
       if (!res.meta || res.meta.changes === 0) return json({ error: 'conversation not found' }, 404);
     } catch (_) {
       return json({ error: 'wa_conversations not migrated yet' }, 503);
