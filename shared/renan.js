@@ -193,7 +193,10 @@
     // pixel↔CAPI dedup by event_id still holds. Build the Meta campaign /
     // custom conversion on the event name 'AgendamentoWhatsApp'.
     try { fbq("trackCustom", "AgendamentoWhatsApp", {}, { eventID: leadId }); } catch (_) {}
-    try { if (window.gtag) gtag("event", "generate_lead"); } catch (_) {}
+    // GA4 generate_lead é disparado SÓ no server-side (tracker.js → Measurement
+    // Protocol, em /tracker) para não contar a conversão em dobro. O disparo
+    // client-side gtag('event','generate_lead') foi removido de propósito.
+    // (O gtag.js segue carregando para PageView + enhanced measurement.)
     track("Lead", leadId, {});
   }, true);
 })();

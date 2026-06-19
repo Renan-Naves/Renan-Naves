@@ -51,8 +51,11 @@ stays dormant until the Meta-spend env vars are set.)
 session** (`api.whatsapp.com`/`wa.me`). All client-side tracking lives in **`shared/renan.js`** (loaded
 by the root LP + every blog page, so one file instruments them all): it loads the Meta Pixel + fires
 `PageView` (pixel + CAPI, deduped by `event_id`), loads GA4 via the first-party `/scripts/gtag.js`
-proxy, and fires `Lead` (pixel + `/tracker`, plus a GA4 `generate_lead`) on the first WhatsApp click,
-guarded by a `sessionStorage` flag so the CPL isn't inflated.
+proxy, and fires `Lead` (pixel + `/tracker`) on the first WhatsApp click, guarded by a
+`sessionStorage` flag so the CPL isn't inflated. **GA4 `generate_lead` is fired SERVER-SIDE only**
+(via `/tracker` → Measurement Protocol); the client-side `gtag('event','generate_lead')` was removed
+(2026-06-19) to avoid double-counting the conversion in GA4 (gtag.js still loads for PageView +
+enhanced measurement).
 
 **What it does server-side:** the edge middleware (`functions/_middleware.js`) runs on every page
 request, sets 400-day first-party cookies (`_krob_sid`, `_fbp`, `_fbc`, `_krob_eid`), captures
@@ -112,9 +115,10 @@ session carries a `gclid`. Because the lead is a WhatsApp click with no email/ph
 enhanced-conversions-for-leads (hashed PII) does not apply — attribution is by `gclid`. `eventTimestamp`
 is RFC 3339 in `TIMEZONE_OFFSET` (default `-03:00`), which should match the Google Ads account timezone.
 
-**GA4 is ON.** Both client-side (gtag via the first-party `/scripts/gtag.js` proxy, initialised in
-`shared/renan.js`) and server-side (Measurement Protocol from `tracker.js`, conversions only — it skips
-`PageView`). Measurement ID `G-GT1DY1F536`. Needs `GA4_MEASUREMENT_ID` + `GA4_API_SECRET` env vars for
+**GA4 is ON.** Client-side gtag (first-party `/scripts/gtag.js` proxy, initialised in `shared/renan.js`)
+handles PageView + enhanced measurement; **the `generate_lead` conversion is fired SERVER-SIDE only**
+(Measurement Protocol from `tracker.js`, conversions only — it skips `PageView`) so the conversion isn't
+double-counted (client-side `generate_lead` removed 2026-06-19). Measurement ID `G-GT1DY1F536`. Needs `GA4_MEASUREMENT_ID` + `GA4_API_SECRET` env vars for
 the server-side fire; `tracker.js` skips GA4 cleanly if they're unset.
 
 **Hard rules (do not violate):**
