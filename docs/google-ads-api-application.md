@@ -24,15 +24,35 @@
 
 ---
 
+## 0. API Center — perfil do desenvolvedor (CORRIGIR ANTES DE REENVIAR)
+
+O perfil ao vivo no API Center estava contando uma história de **agência** (e-mail pessoal + URL de
+LinkedIn + "gerenciar múltiplas contas de clientes"), o que **contradiz** este doc e o site e causou a
+recusa. Estratégia escolhida = **anunciante único (Clínica Raise)**. Ajuste o perfil para:
+
+| Campo | Valor a usar |
+|---|---|
+| E-mail de contato da API | `contato@drrenannaves.com.br` |
+| Nome da empresa | `Clínica Raise` |
+| URL da empresa | `https://drrenannaves.com.br` |
+| Tipo de empresa | **Anunciante / uso interno** (NÃO "Agência/SEM") |
+| Uso pretendido | "Read-only reporting da nossa própria conta de anúncios (Google Ads), importando custo e palavras-chave para um dashboard interno e privado. Sem mutates, sem gerenciar contas de terceiros." |
+| Sede | Brasil |
+
+Garanta também que a **conta Google** logada no API Center use identidade do domínio (não um Gmail/Hotmail pessoal).
+
 ## 1. Summary
 
 - **Requested access level:** **Basic Access.**
 - **Tool type:** **Internal reporting dashboard** for a **single advertiser that we own/manage**.
 - **API usage:** **Read‑only reporting** via `GoogleAdsService.Search` (GAQL). No mutates, no
   account management, no third‑party account management.
+- **Operating entity (advertiser):** **Clínica Raise** — CNPJ **47.611.136/0001-00**, brand
+  *Dr. Renan Naves* (CRM 156526 SP), site **https://drrenannaves.com.br**.
 - **Accounts:**
   - Manager (MCC) account: **337‑869‑8997** (`login-customer-id`)
-  - Advertiser (operating) account: **978‑281‑8062** — *Dr. Renan Naves* (medical clinic)
+  - Advertiser (operating) account: **978‑281‑8062** — *Clínica Raise / Dr. Renan Naves*
+  - We read **only this one advertiser account** (no third-party accounts, no SaaS offered to others).
 - **Operation volume:** trivial — one hourly cron pulling 2 reports for 1 account
   (~48 search requests/day), far below the Basic Access limit.
 
@@ -127,7 +147,7 @@ read‑only, single‑account, internal use.
 
 > Use these as the basis; keep them honest and consistent with the design doc above.
 
-**Company / website:** Dr. Renan Naves (medical practice) — https://drrenannaves.com.br
+**Company / website:** Clínica Raise (CNPJ 47.611.136/0001-00), brand Dr. Renan Naves — https://drrenannaves.com.br
 
 **Developer contact email:** `contato@drrenannaves.com.br` (corporate address on the company
 domain — NOT a personal Gmail/Hotmail). Ensure the Google account tied to the API Center
