@@ -91,7 +91,7 @@ WHERE segments.date DURING LAST_30_DAYS
 ```
 
 **Service/method called:** `GoogleAdsService.Search` (`POST .../googleAds:search`), API version
-`v20`. **No** `mutate` calls of any kind are made. The OAuth scope is
+`v24` (current). **No** `mutate` calls of any kind are made. The OAuth scope is
 `https://www.googleapis.com/auth/adwords` (read access to the advertiser's reporting).
 
 ## 4. Architecture / data flow
@@ -101,7 +101,7 @@ WHERE segments.date DURING LAST_30_DAYS
                       │  OAuth2 refresh token (adwords scope)
                       │  developer-token header + login-customer-id: 3378698997
                       ▼
-              Google Ads API  v20  GoogleAdsService.Search  (READ ONLY)
+              Google Ads API  v24  GoogleAdsService.Search  (READ ONLY)
                       │  Query A: campaign cost   Query B: keyword stats
                       ▼
               our database (ad_spend, google_keyword_stats tables)

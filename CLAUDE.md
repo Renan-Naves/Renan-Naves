@@ -171,7 +171,7 @@ instance API token, sent as the `token` header). The send shape assumed is the s
 **Google Ads spend/keyword reporting sync** (`/api/sync/google-ads`, implemented GAQL pull — needs the Google
 Ads API, NOT Data Manager; self-skips until creds set): `GOOGLE_ADS_DEVELOPER_TOKEN` (encrypt),
 `GOOGLE_ADS_REPORTING_REFRESH_TOKEN` (encrypt — `https://www.googleapis.com/auth/adwords` scope); reuses the
-client id/secret + customer/login ids above. Optional `GOOGLE_ADS_API_VERSION` (default `v20`) — bump when
+client id/secret + customer/login ids above. Optional `GOOGLE_ADS_API_VERSION` (default `v24`) — bump when
 Google sunsets it. Cron: set `SYNC_URL_GOOGLE` on `cron-worker/` to also sync Google hourly.
 **Meta-spend sync** (powers the `/dashboard` campaign view + `cron-worker/`, inactive until set):
 `SYNC_SECRET` (encrypt — also set as a secret on the cron Worker, see `cron-worker/README.md`),

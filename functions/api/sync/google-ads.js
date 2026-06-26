@@ -16,12 +16,13 @@
 //   GOOGLE_ADS_CUSTOMER_ID        (advertiser / operating account, digits only)
 //   GOOGLE_ADS_LOGIN_CUSTOMER_ID  (MCC id, digits only; = customer id if no MCC)
 //   GOOGLE_ADS_API_VERSION        (optional, default below — set to the current
-//                                  stable version, e.g. 'v20', when Google sunsets it)
+//                                  stable version when Google sunsets it; Google now
+//                                  ships monthly and keeps only the 3 latest majors)
 //
 // Auth: header `x-sync-secret: <env.SYNC_SECRET>` (same as meta-ads sync).
 // Body: { date_from?: 'YYYY-MM-DD', date_to?: 'YYYY-MM-DD' } — defaults last 7 days.
 
-const DEFAULT_API_VERSION = 'v20';
+const DEFAULT_API_VERSION = 'v24'; // current major as of 2026-06; v20 (2025) is sunset
 
 export async function onRequestPost(context) {
   const { request, env } = context;
