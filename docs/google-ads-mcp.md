@@ -1,73 +1,48 @@
-# Google Ads MCP (oficial, read-only) — setup
+# Google Ads MCP (oficial, read-only) — instalado em escopo global
 
-Servidor MCP **oficial** do Google ([google-marketing-solutions/google_ads_mcp](https://github.com/google-marketing-solutions/google_ads_mcp)),
-lançado em 28/04/2026. Permite que o Claude leia a conta do Google Ads por linguagem natural
-(consultas GAQL). É **estritamente read-only** por padrão (não pausa campanha, não muda lance,
-não cria nada — `ADS_MCP_ENABLE_MUTATIONS` fica `false`).
+Servidor MCP **oficial** do Google: [`github.com/googleads/google-ads-mcp`](https://github.com/googleads/google-ads-mcp).
+Read-only: `search` (GAQL), `get_resource_metadata`, `list_accessible_customers`. Doc:
+https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server
 
-Expõe 3 ferramentas: `list_accessible_customers`, `search` (GAQL), `get_resource_metadata`.
+> Permite consultar a conta do Google Ads por linguagem natural no Claude. O fluxo de produção do
+> site NÃO depende disto — conversões usam a Data Manager API e o relatório do `/dashboard` usa
+> `functions/api/sync/google-ads.js`. O MCP é ferramenta de análise.
 
-> **Para que serve aqui:** inspeção interativa da conta do Dr. Renan (`978-281-8062`) via o MCC
-> One Tree Eitch `337-869-8997` (**CONFIRMAR** — o doc do token tem 336 vs 337 inconsistente). O
-> fluxo de produção do site NÃO depende disto — conversões usam a Data Manager
-> API e o relatório do dashboard usa `functions/api/sync/google-ads.js`. O MCP é só uma
-> ferramenta de análise para nós.
+## Como foi instalado (2026-06, máquina do Bruno)
 
-## ⚠️ Bloqueio atual: o mesmo developer token
+- **Runtime:** `uv` em `C:\Users\bruno\.local\bin\uv.exe`.
+- **Servidor:** clonado em `_tools/google_ads_mcp` (gitignorado); deps via `uv sync --system-certs`
+  (a máquina intercepta TLS → precisa de system certs). Lançado por `uv run --frozen ... python -m ads_mcp.server`.
+- **Credenciais:** ADC (Application Default Credentials), em `C:\Users\bruno\.google-ads-mcp\` (sem espaços, fora do repo):
+  - `adc.json` — `{type:"authorized_user", client_id, client_secret, refresh_token}` (refresh com escopo `adwords`).
+  - `mcp.env` — `GOOGLE_APPLICATION_CREDENTIALS` (→ adc.json), `GOOGLE_ADS_DEVELOPER_TOKEN`,
+    `GOOGLE_PROJECT_ID`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID=3378698997`, `UV_SYSTEM_CERTS=1`.
+  - São os MESMOS valores das env vars `GOOGLE_ADS_*` do Cloudflare (reporting sync).
+- **Registro (escopo global):** `~/.claude.json` → `mcpServers.google-ads`:
+  ```json
+  {
+    "type": "stdio",
+    "command": "C:/Users/bruno/.local/bin/uv.exe",
+    "args": ["run","--frozen","--directory","b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp",
+             "--env-file","C:/Users/bruno/.google-ads-mcp/mcp.env","python","-m","ads_mcp.server"],
+    "env": { "UV_SYSTEM_CERTS": "1" }
+  }
+  ```
+  (Não usamos o console script `google-ads-mcp` — o `uv sync` não o instala no venv; rodamos o módulo.)
 
-O MCP **exige o `developer_token`** da Google Ads API (igual ao sync de relatório). Hoje o token
-está em **Test Access**, que só alcança **contas de teste** — não a conta real. Para o MCP ler a
-conta de produção, é preciso o **Basic Access** aprovado (ver `docs/google-ads-api-application.md`).
-Enquanto isso não sai, dá para conectar e testar só contra conta de teste.
+## Ativar / reativar
 
-## Pré-requisitos (não instalados nesta máquina)
+1. Preencher os 5 valores: `adc.json` (client_id, client_secret, refresh_token) + `mcp.env`
+   (developer_token, project_id).
+2. **Recarregar a janela do VSCode** (Ctrl+Shift+P → "Developer: Reload Window") para a extensão
+   reconectar o servidor `google-ads`. `/mcp` lista o status.
+3. Testar: "liste as contas acessíveis" (`list_accessible_customers`).
 
-- **Python 3.11+** e **uv** (gerenciador). Nenhum dos dois está instalado aqui hoje.
-  - Instalar uv (PowerShell): `irm https://astral.sh/uv/install.ps1 | iex`
-  - (Máquina intercepta TLS — se o download falhar, use o instalador `.msi`/Python do site oficial.)
-- **git** (já tem).
+## Notas / troubleshooting
 
-## Passo a passo para ATIVAR
-
-1. **Clonar o servidor** (fora do conteúdo publicável — `_tools/` está no `.gitignore`):
-   ```sh
-   git clone https://github.com/google-marketing-solutions/google_ads_mcp.git "b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp"
-   ```
-
-2. **Criar `google-ads.yaml`** na raiz do projeto (já gitignorado) a partir de
-   `google-ads.yaml.example`, preenchendo com as credenciais (as mesmas dos env vars
-   `GOOGLE_ADS_*` do Cloudflare):
-   ```yaml
-   developer_token: "SEU_DEVELOPER_TOKEN"        # 22 chars; precisa de Basic Access p/ conta real
-   client_id: "...apps.googleusercontent.com"
-   client_secret: "..."
-   refresh_token: "..."                          # escopo https://www.googleapis.com/auth/adwords
-   login_customer_id: "3378698997"               # MCC (337-869-8997), só dígitos — CONFIRMAR
-   use_proto_plus: true
-   ```
-
-3. **Registrar no Claude Code em USER SCOPE** (global — disponível em TODOS os seus projetos,
-   não só neste repo). Rodar uma vez:
-   ```sh
-   claude mcp add google-ads --scope user \
-     --env GOOGLE_ADS_CREDENTIALS="b:/One Tree Eitch/Clientes/RENAN NAVES/google-ads.yaml" \
-     -- uv run --directory "b:/One Tree Eitch/Clientes/RENAN NAVES/_tools/google_ads_mcp" -m ads_mcp.server
-   ```
-   Isso grava em `~/.claude.json` (config global do usuário), igual a ter o servidor "no Claude
-   como um todo". (Windows: se `uv` não for encontrado pelo Claude, prefixe o comando com
-   `cmd /c` ou use o caminho absoluto do `uv.exe`.)
-
-   **Alternativa — só este projeto (project scope):** copiar `.mcp.json.example` para `.mcp.json`
-   na raiz (gitignorado). Use isto se NÃO quiser o servidor global.
-
-4. **Reabrir o Claude Code** e aprovar o servidor `google-ads` quando perguntado (`/mcp` lista o
-   status). Testar com algo como "liste as contas acessíveis" (`list_accessible_customers`).
-
-## Notas
-
-- `developer_token`, `client_secret`, `refresh_token` são **segredos** — só no `google-ads.yaml`
-  local, nunca no git. `google-ads.yaml`, `.mcp.json` e `_tools/` estão no `.gitignore`.
-- Read-only é o padrão (`ADS_MCP_ENABLE_MUTATIONS` não setado). **Não** habilite mutations para
-  uma ferramenta de análise.
-- Reuso de credenciais: são as MESMAS do reporting sync (client id/secret + refresh com escopo
-  `adwords` + dev token + MCC). Ver `## Tracking` no `CLAUDE.md` raiz.
+- Read-only é o padrão (`ADS_MCP_ENABLE_MUTATIONS` não setado). Não habilitar para análise.
+- MCC = `337-869-8997` (login-customer-id); anunciante Dr. Renan = `978-281-8062`.
+- Se as deps precisarem reinstalar: `cd _tools/google_ads_mcp && uv sync --system-certs`.
+- Segredos (`adc.json`, `mcp.env`) ficam SÓ em `C:\Users\bruno\.google-ads-mcp\` — nunca no git.
+  O repo só tem o clone em `_tools/` (gitignorado). Token de developer/refresh são os mesmos do
+  Cloudflare (ver `## Tracking` no CLAUDE.md raiz).
