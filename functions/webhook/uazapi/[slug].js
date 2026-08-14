@@ -191,20 +191,29 @@ function normalise(p) {
 
 // Pull the Click-to-WhatsApp ad data out of a uazapi message.
 //
-// CONFIRMED shape (real payloads, 2026-08-14): uazapi carries it in the message's
-// contextInfo — NOT in a `referral` object (that's the WhatsApp Cloud API shape,
-// still accepted below as a fallback):
+// CONFIRMED shape (real payloads + a 200 from Meta, 2026-08-14). uazapi carries it
+// in the message's contextInfo — NOT in a `referral` object (that's the WhatsApp
+// Cloud API shape, still accepted below as a fallback):
 //
 //   message.content.contextInfo = {
 //     conversionSource: "FB_Ads",
-//     conversionData:   "<base64 of the ctwa_clid>",   // ctwaPayload repeats it
+//     conversionData / ctwaPayload: "<base64 blob>",    // NOT the clid — see below
 //     entryPointConversionSource: "ctwa_ad",
 //     entryPointConversionApp:    "instagram",
-//     externalAdReply: { title, body, sourceUrl, sourceId, mediaURL, thumbnail }
+//     externalAdReply: {
+//       title, body, mediaURL, thumbnail,
+//       sourceID:  "<ad id>",
+//       sourceURL: "<ad destination>",
+//       ctwaClid:  "<THE CLICK ID>"     <-- ~138 chars, this is what Meta wants
+//     }
 //   }
 //
-// We return a COMPACT object: externalAdReply.thumbnail is a multi-KB base64 JPEG
-// and must never reach referral_raw.
+// TRAP: `conversionData` base64-decodes to a plausible-looking ~426-char "Af…"
+// string, but it is NOT the ctwa_clid — Meta rejects it. The real clid is
+// `externalAdReply.ctwaClid`, and it sits AFTER the multi-KB base64 `thumbnail`,
+// so it is easy to miss when eyeballing a truncated payload.
+//
+// We return a COMPACT object: the thumbnail must never reach referral_raw.
 function extractReferral(m, content) {
   // WhatsApp Cloud API / older shapes first — if one carries a clid, trust it.
   const legacy = m.referral || m.message?.referral || null;
@@ -213,8 +222,10 @@ function extractReferral(m, content) {
   const ctx = content?.contextInfo || m.contextInfo || m.message?.contextInfo || null;
   if (!ctx) return legacy;
 
-  const clid = decodeCtwaClid(ctx.conversionData || ctx.ctwaPayload || '');
   const ext = ctx.externalAdReply || null;
+  // the clid lives INSIDE externalAdReply; fall back to the contextInfo top level
+  // in case Meta ever surfaces it there.
+  const clid = str(ext?.ctwaClid) || str(ctx.ctwaClid);
   if (!clid && !ext && !ctx.conversionSource) return legacy;
 
   return {
@@ -222,25 +233,20 @@ function extractReferral(m, content) {
     conversion_source: ctx.conversionSource || null,          // "FB_Ads"
     entry_point: ctx.entryPointConversionSource || null,      // "ctwa_ad"
     entry_point_app: ctx.entryPointConversionApp || null,     // "instagram" | "facebook"
-    title: ext?.title || null,
+    title: str(ext?.title),
     body: ext?.body ? String(ext.body).slice(0, 300) : null,
-    source_url: ext?.sourceUrl || ext?.source_url || null,
-    source_id: ext?.sourceId || ext?.source_id || null,
-    media_url: ext?.mediaURL || ext?.mediaUrl || null,
+    source_url: str(ext?.sourceURL) || str(ext?.sourceUrl),
+    source_id: str(ext?.sourceID) || str(ext?.sourceId),      // the ad id
+    media_url: str(ext?.mediaURL) || str(ext?.mediaUrl),
+    // kept for the record only — deliberately NOT used as the clid
+    ctwa_payload_b64: str(ctx.ctwaPayload) || str(ctx.conversionData),
   };
 }
 
-// conversionData holds the ctwa_clid base64-encoded; Meta's CAPI wants the plain
-// clid (a ~426-char "Af..." string). If it doesn't decode to something clid-shaped
-// we keep the raw value rather than dropping the attribution entirely.
-function decodeCtwaClid(v) {
-  const raw = String(v || '').trim();
-  if (!raw) return null;
-  try {
-    const dec = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
-    if (dec.length > 20 && /^[\x20-\x7E]+$/.test(dec)) return dec;
-  } catch (_) { /* not base64 — fall through */ }
-  return /^[\w-]{20,}$/.test(raw) ? raw : null;
+function str(v) {
+  if (v === undefined || v === null) return null;
+  const s = String(v);
+  return s.length ? s : null;
 }
 
 async function resolveAttribution(env, msg) {

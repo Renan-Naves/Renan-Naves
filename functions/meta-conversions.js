@@ -33,7 +33,7 @@ export async function sendMetaMessagingConversion({
   // Diagnostic-only overrides (used by /api/test-meta-conversion to isolate which
   // identifier Meta accepts for a given CTWA conversation). Production callers
   // never pass these and keep the env-driven behaviour below.
-  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId, suppressEnvTestCode, pixelIdOverride,
+  wabaIdOverride, pageIdOverride, omitAccountIds, preferWabaId, suppressEnvTestCode, pixelIdOverride,
 }) {
   const pixelId = pixelIdOverride || env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
   const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
@@ -46,17 +46,24 @@ export async function sendMetaMessagingConversion({
 
   // Meta REQUIRES a page_id or whatsapp_business_account_id in user_data for
   // business_messaging/whatsapp events (else: subcode 2804116 "Falta a
-  // identificação da Página ou da conta do WhatsApp Business"). The WABA id is
-  // the natural one for the WhatsApp channel; page_id is accepted as fallback.
+  // identificação da Página ou da conta do WhatsApp Business").
+  //
+  // USE page_id. Proven against Meta on 2026-08-14: with a real ctwa_clid,
+  // `page_id` returns 200 / events_received:1, while `whatsapp_business_account_id`
+  // is rejected with subcode 2804132 — "para eventos de CTWA … o conjunto de dados
+  // deve ter uma conta do WhatsApp Business associada". This dataset has no WABA
+  // linked to it, and page_id needs no such link.
   const userData = { ctwa_clid: ctwaClid };
-  const wabaId = wabaIdOverride || (preferPageId ? '' : env.META_WA_BUSINESS_ACCOUNT_ID);
   const pageId = pageIdOverride || env.META_WA_PAGE_ID;
+  const wabaId = wabaIdOverride || env.META_WA_BUSINESS_ACCOUNT_ID;
   if (omitAccountIds) {
     /* diagnostic: send neither, to see which identifier Meta demands */
-  } else if (wabaId) {
+  } else if (preferWabaId && wabaId) {
     userData.whatsapp_business_account_id = String(wabaId);
   } else if (pageId) {
     userData.page_id = String(pageId);
+  } else if (wabaId) {
+    userData.whatsapp_business_account_id = String(wabaId);
   }
   const hashedPh = await sha256(normalizePhone(phone, env.DEFAULT_COUNTRY_CODE));
   if (hashedPh) userData.ph = [hashedPh];

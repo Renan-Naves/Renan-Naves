@@ -73,10 +73,9 @@ export async function onRequestGet(context) {
     }
   }
 
-  // Identifier overrides, to isolate WHICH account id Meta accepts for a real
-  // ctwa_clid: ?ids=waba|page|none (default: env behaviour), plus explicit
-  // ?waba=<id> / ?page_id=<id>. A real clid that clears the 2804087 clid check
-  // but then fails generically usually means the id doesn't own that conversation.
+  // Identifier overrides: ?ids=waba|page|none, plus explicit ?waba= / ?page_id=.
+  // Default (and what production uses) is page_id — see meta-conversions.js for
+  // why the WABA id is rejected here with subcode 2804132.
   const ids = (url.searchParams.get('ids') || '').toLowerCase();
   const wabaParam = url.searchParams.get('waba') || undefined;
   const pageParam = url.searchParams.get('page_id') || undefined;
@@ -98,7 +97,7 @@ export async function onRequestGet(context) {
     wabaIdOverride: wabaParam,
     pageIdOverride: pageParam,
     omitAccountIds: ids === 'none',
-    preferPageId: ids === 'page',
+    preferWabaId: ids === 'waba',
     suppressEnvTestCode: noTestCode,
     // ?pixel=<dataset id> — a real ctwa_clid only resolves against the dataset
     // that actually owns the conversation, so this tells us whether the
