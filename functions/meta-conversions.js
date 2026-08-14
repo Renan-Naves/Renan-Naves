@@ -33,7 +33,7 @@ export async function sendMetaMessagingConversion({
   // Diagnostic-only overrides (used by /api/test-meta-conversion to isolate which
   // identifier Meta accepts for a given CTWA conversation). Production callers
   // never pass these and keep the env-driven behaviour below.
-  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId,
+  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId, suppressEnvTestCode,
 }) {
   const pixelId = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
   const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
@@ -80,7 +80,9 @@ export async function sendMetaMessagingConversion({
   };
   // Test Events code for the messaging dataset: per-request override (QA), then
   // the WA-specific env, then the web one.
-  const resolvedTestCode = testEventCode || env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE;
+  const resolvedTestCode = suppressEnvTestCode
+    ? null
+    : (testEventCode || env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE);
   if (resolvedTestCode) {
     payload.test_event_code = resolvedTestCode;
   }

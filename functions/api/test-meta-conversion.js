@@ -29,7 +29,12 @@ export async function onRequestGet(context) {
   const ctwaClid = url.searchParams.get('ctwa_clid') || 'TEST_CTWA_CLID_DIAGNOSTIC';
   const value = parseFloat(url.searchParams.get('value') || '');
   const valueCents = type === 'purchase' ? Math.round((Number.isNaN(value) ? 1 : value) * 100) : undefined;
-  const testEventCode = url.searchParams.get('test_event_code') || undefined;
+  // ?no_test_code=1 fires the event for REAL (no Test Events routing), exactly as
+  // mark-conversion does in production. Needed because META_WA_TEST_EVENT_CODE in
+  // the environment would otherwise always win — which is also what silently sends
+  // every dashboard conversion to Test Events instead of counting it.
+  const noTestCode = url.searchParams.get('no_test_code') === '1';
+  const testEventCode = noTestCode ? null : (url.searchParams.get('test_event_code') || undefined);
 
   // Probe: can this token even LOAD the dataset object (read-only GET)? This
   // disambiguates the subcode-33 error: if the GET succeeds, the token has
@@ -71,6 +76,7 @@ export async function onRequestGet(context) {
     pageIdOverride: pageParam,
     omitAccountIds: ids === 'none',
     preferPageId: ids === 'page',
+    suppressEnvTestCode: noTestCode,
   });
 
   return json({
