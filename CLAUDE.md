@@ -156,8 +156,8 @@ datasets by design). Set `META_WA_PIXEL_ID` (the messaging/CTWA dataset, e.g. `9
 `META_WA_BUSINESS_ACCOUNT_ID` (the WhatsApp Business Account / WABA id — preferred) **or** `META_WA_PAGE_ID` (the
 CTWA ad's Facebook Page id) — without one, Meta rejects with subcode 2804116 ("Falta a identificação da Página ou da
 conta do WhatsApp Business"). Optional `META_WA_TEST_EVENT_CODE` routes messaging test events to the B dataset's
-Test Events — **but it is currently SET in production, which silently routes EVERY dashboard-marked
-conversion to Test Events instead of counting it. Remove it before the comercial team starts marking.**
+Test Events — **keep it UNSET in production** (it was set until 2026-08-14, which silently routed every
+dashboard-marked conversion to Test Events instead of counting it; removed and verified in the runtime).
 
 **CTWA shape (confirmed against real uazapi payloads, 2026-08-14).** The `ctwa_clid` does NOT arrive in a
 `referral` object (that's the WhatsApp Cloud API shape) — uazapi puts it in the message's contextInfo:
@@ -173,9 +173,13 @@ contextInfo, so an outbound echo can recover a missing clid. CTWA rows are tagge
 `code 1 / "An unknown error has occurred"` regardless of event name, account id (`whatsapp_business_account_id`
 / `page_id` / none), `test_event_code`, or dataset. The configured messaging dataset (`META_WA_PIXEL_ID` =
 973421805455371, "Pixel WhatsApp") has **never received a single event** and a read probe on it returns
-`(#100) Missing Permission`. Most likely the dataset was never connected to the WhatsApp Business Account
-(and the number runs on uazapi = WhatsApp Web/Baileys, not the official Cloud API). Needs a fix in Meta's
-Events Manager / WhatsApp Manager, not in this repo. Full detail + the diagnostic recipe: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
+`(#100) Missing Permission`. Sharper evidence (2026-08-14, 2nd round): the token authenticates fine
+(`GET /me` → 200, id `122119147191363950`) but **cannot read the WABA** (`GET /437676086092498` → 400
+"does not exist / missing permissions"), while the page id is confirmed correct. A real clid is resolved
+against the WABA that owns the conversation, so either `META_WA_BUSINESS_ACCOUNT_ID` is the wrong id or
+the system user/app behind the token has no access to that WABA (needs `whatsapp_business_management` +
+a REISSUED token). Needs a fix in Meta's Business Settings / WhatsApp Manager, not in this repo. Full
+detail + the diagnostic recipe: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
 business_messaging event to pixel B (reports the pixel used + a read-only token probe); with a throwaway `ctwa_clid`
 it ends at subcode 2804087 ("ctwa_clid inválido"), which **confirms every other layer is wired** — a real CTWA clid
 is the only thing it can't fake. **Verified 2026-06-16:** token + dataset + page_id/WABA all green (reached 2804087).

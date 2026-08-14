@@ -76,19 +76,30 @@ O que foi isolado (com um `ctwa_clid` REAL, capturado de um anúncio de verdade)
   um único evento** (`last_fired_time` = epoch zero) e foi criado à mão. Um `GET` nele com o
   token retorna `(#100) Missing Permission`.
 
-Hipótese mais provável: **o dataset não está conectado à conta do WhatsApp Business**. A CAPI de
-business messaging só resolve um `ctwa_clid` real contra o dataset que é dono daquela conversa —
-e essa ligação (Events Manager / WhatsApp Manager → conectar dataset à WABA) parece nunca ter
-sido feita. Vale checar também se o número, conectado via **uazapi (WhatsApp Web/Baileys, não a
-Cloud API oficial)**, tem uma WABA oficial à qual conectar um dataset.
+**Causa mais provável, refinada em 2026-08-14 (2ª rodada, já sem `META_WA_TEST_EVENT_CODE`):**
+o token **não enxerga a WABA**. Sondagem com o `META_WA_ACCESS_TOKEN`:
+- `GET /me` → **200**, id `122119147191363950` (o token é válido e autentica);
+- `GET /437676086092498` (a WABA de `META_WA_BUSINESS_ACCOUNT_ID`) → **400**, "Object with ID does
+  not exist, cannot be loaded due to missing permissions";
+- `GET /111747308497370` (a page) → 400 por falta de `pages_read_engagement` (esperado, inconclusivo).
+
+A page **está correta** (é a única do BM: "Dr. Renan Naves"). Como um `ctwa_clid` real é resolvido
+contra a WABA dona da conversa, um token que não consegue nem ler a WABA não consegue atribuir —
+o que casa com o `code 1` genérico só aparecer **depois** que o clid passa na validação.
+
+Então é uma de duas (ou as duas): (a) `META_WA_BUSINESS_ACCOUNT_ID` está com o id errado, ou (b) o
+system user / app que gerou o token não tem acesso à WABA (falta adicioná-lo em Configurações do
+Negócio → Contas do WhatsApp → Pessoas/Apps, com `whatsapp_business_management` + `business_management`,
+e **gerar o token de novo** — escopo novo não vale para token já emitido). Vale checar também se o
+número, conectado via **uazapi (WhatsApp Web/Baileys, não a Cloud API oficial)**, tem uma WABA oficial.
 
 Diagnóstico p/ retomar: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified` com
 `&ctwa_clid=<real>` (pegue um em `wa_conversations`), `&no_test_code=1` (dispara de verdade),
 `&pixel=<dataset>`, `&ids=waba|page|none`, `&waba=`/`&page_id=`, `&age_days=`.
 
-**Também pendente:** remover `META_WA_TEST_EVENT_CODE` das env vars de produção. Enquanto ela
-existir, `meta-conversions.js` cai nela quando o chamador não passa código — e **toda** conversão
-marcada no dashboard vai para Test Events em vez de contar.
+**RESOLVIDO 2026-08-14:** `META_WA_TEST_EVENT_CODE` foi removida das env vars de produção
+(verificado no runtime: o payload já sai sem `test_event_code`). As conversões marcadas agora vão
+para produção — não para Test Events.
 
 ## Notes
 
