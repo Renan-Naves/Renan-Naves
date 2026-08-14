@@ -93,6 +93,16 @@ Negócio → Contas do WhatsApp → Pessoas/Apps, com `whatsapp_business_managem
 e **gerar o token de novo** — escopo novo não vale para token já emitido). Vale checar também se o
 número, conectado via **uazapi (WhatsApp Web/Baileys, não a Cloud API oficial)**, tem uma WABA oficial.
 
+**Restrição de categoria (saúde) — problema SEPARADO, não é a causa do `code 1`.** O BM mostra
+"Foram aplicadas restrições à partilha de dados… categorias com restrições". É a mesma restrição que
+já suprimiu o evento padrão `Lead` no pixel da LP. Quando ela bate, a Meta **aceita e descarta em
+silêncio** (a CAPI responde `events_received:1`) — não devolve 500. Regra prática que vale aqui:
+**evento padrão é suprimido, customizado passa**. `QualifiedLead` já é customizado; **`Purchase` é
+padrão e tende a ser descartado** — quando a WABA for resolvida, renomear para algo como
+`VendaWhatsApp` e criar a conversão personalizada correspondente no Events Manager.
+Sanidade dos datasets (2026-08-14): "Pixel WhatsApp" = **0 eventos em 7 dias**; "Pixel LP Dr Renan" =
+`PageView` + `AgendamentoWhatsApp` entrando normalmente (a volta do evento customizado funciona).
+
 Diagnóstico p/ retomar: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified` com
 `&ctwa_clid=<real>` (pegue um em `wa_conversations`), `&no_test_code=1` (dispara de verdade),
 `&pixel=<dataset>`, `&ids=waba|page|none`, `&waba=`/`&page_id=`, `&age_days=`.
