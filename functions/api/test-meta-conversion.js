@@ -59,6 +59,11 @@ export async function onRequestGet(context) {
       ['identidade', 'me?fields=id,name'],
       ['waba', `${env.META_WA_BUSINESS_ACCOUNT_ID || ''}?fields=id,name,currency,owner_business_info`],
       ['page', `${env.META_WA_PAGE_ID || ''}?fields=id,name`],
+      // Is the number on the WhatsApp Business PLATFORM (Cloud API) or just the
+      // WhatsApp Business APP? CAPI business-messaging conversions only exist for
+      // the Platform; an App-type number has no server-side integration to attach
+      // a conversion to, which would explain a generic error after the clid checks.
+      ['numeros_da_waba', `${env.META_WA_BUSINESS_ACCOUNT_ID || ''}/phone_numbers?fields=id,display_phone_number,verified_name,platform_type,quality_rating`],
     ]) {
       if (path.startsWith('?')) continue;
       try {
