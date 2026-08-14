@@ -169,17 +169,17 @@ Never persist `externalAdReply.thumbnail` (multi-KB base64 JPEG). Our replies (`
 contextInfo, so an outbound echo can recover a missing clid. CTWA rows are tagged
 `utm_source=meta-ads` / `utm_medium=ctwa-<app>`.
 
-**KNOWN BLOCKER — the Meta CTWA conversion upload does not work yet.** With a real `ctwa_clid` Meta answers
-`code 1 / "An unknown error has occurred"` regardless of event name, account id (`whatsapp_business_account_id`
-/ `page_id` / none), `test_event_code`, or dataset. The configured messaging dataset (`META_WA_PIXEL_ID` =
-973421805455371, "Pixel WhatsApp") has **never received a single event** and a read probe on it returns
-`(#100) Missing Permission`. Sharper evidence (2026-08-14, 2nd round): the token authenticates fine
-(`GET /me` → 200, id `122119147191363950`) but **cannot read the WABA** (`GET /437676086092498` → 400
-"does not exist / missing permissions"), while the page id is confirmed correct. A real clid is resolved
-against the WABA that owns the conversation, so either `META_WA_BUSINESS_ACCOUNT_ID` is the wrong id or
-the system user/app behind the token has no access to that WABA (needs `whatsapp_business_management` +
-a REISSUED token). Needs a fix in Meta's Business Settings / WhatsApp Manager, not in this repo. Full
-detail + the diagnostic recipe: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
+**PERMANENT BLOCKER — the Meta CTWA conversion upload CANNOT work with this setup (root cause confirmed
+2026-08-14).** Meta's Conversions API for Business Messaging only supports numbers on the **WhatsApp
+Business Platform (Cloud API)**. This number is `platform_type: ON_PREMISE` (`GET <waba>/phone_numbers`
+→ `+55 11 91846-8794`, `quality_rating: UNKNOWN`) and runs on **uazapi (WhatsApp Web/Baileys)**, so there
+is no server-side integration to attach a conversion to: with a real `ctwa_clid` Meta always answers
+`code 1 / "An unknown error has occurred"`. Everything else was eliminated as a cause (clid decode, token
+permissions — since fixed and now 200 on WABA+dataset, WABA id, phone-number id, page_id, no id, both
+datasets, custom vs standard event name, test_event_code). Fixing it would require migrating the number
+to the Cloud API, which **would break uazapi** (and with it the CRM inbox + replies). Since CTWA is ~3%
+of conversations, the recommendation is to keep uazapi and optimise Meta campaigns on the native
+"conversas iniciadas" metric instead. Full evidence: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
 business_messaging event to pixel B (reports the pixel used + a read-only token probe); with a throwaway `ctwa_clid`
 it ends at subcode 2804087 ("ctwa_clid inválido"), which **confirms every other layer is wired** — a real CTWA clid
 is the only thing it can't fake. **Verified 2026-06-16:** token + dataset + page_id/WABA all green (reached 2804087).

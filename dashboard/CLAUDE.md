@@ -76,22 +76,37 @@ O que foi isolado (com um `ctwa_clid` REAL, capturado de um anúncio de verdade)
   um único evento** (`last_fired_time` = epoch zero) e foi criado à mão. Um `GET` nele com o
   token retorna `(#100) Missing Permission`.
 
-**Causa mais provável, refinada em 2026-08-14 (2ª rodada, já sem `META_WA_TEST_EVENT_CODE`):**
-o token **não enxerga a WABA**. Sondagem com o `META_WA_ACCESS_TOKEN`:
-- `GET /me` → **200**, id `122119147191363950` (o token é válido e autentica);
-- `GET /437676086092498` (a WABA de `META_WA_BUSINESS_ACCOUNT_ID`) → **400**, "Object with ID does
-  not exist, cannot be loaded due to missing permissions";
-- `GET /111747308497370` (a page) → 400 por falta de `pages_read_engagement` (esperado, inconclusivo).
+### CAUSA RAIZ (confirmada 2026-08-14): o número não está na Cloud API
 
-A page **está correta** (é a única do BM: "Dr. Renan Naves"). Como um `ctwa_clid` real é resolvido
-contra a WABA dona da conversa, um token que não consegue nem ler a WABA não consegue atribuir —
-o que casa com o `code 1` genérico só aparecer **depois** que o clid passa na validação.
+Depois de eliminar tudo o que era eliminável, sobrou a diferença estrutural. Sondando a WABA com o
+token (já regenerado e com permissão total — `GET /me` 200 "Uazappi Renan", `GET <waba>` 200,
+`GET <dataset>` 200):
 
-Então é uma de duas (ou as duas): (a) `META_WA_BUSINESS_ACCOUNT_ID` está com o id errado, ou (b) o
-system user / app que gerou o token não tem acesso à WABA (falta adicioná-lo em Configurações do
-Negócio → Contas do WhatsApp → Pessoas/Apps, com `whatsapp_business_management` + `business_management`,
-e **gerar o token de novo** — escopo novo não vale para token já emitido). Vale checar também se o
-número, conectado via **uazapi (WhatsApp Web/Baileys, não a Cloud API oficial)**, tem uma WABA oficial.
+```
+GET /437676086092498/phone_numbers
+  id: 468831442978015
+  display_phone_number: +55 11 91846-8794
+  verified_name: Atendimento Dr. Renan Naves
+  platform_type: ON_PREMISE        <-- NÃO é CLOUD_API
+  quality_rating: UNKNOWN
+```
+
+A **Conversions API for Business Messaging só funciona para números na WhatsApp Business Platform
+(Cloud API)**. Este número roda no dia a dia via **uazapi (WhatsApp Web/Baileys)** e, nos registros
+da Meta, é uma WABA do tipo "App WhatsApp Business" com número `ON_PREMISE` sem integração ativa
+(`quality_rating: UNKNOWN`). Não existe integração server-side à qual pendurar a conversão — por isso
+a Meta resolve o clid e depois falha com erro genérico.
+
+O que foi ELIMINADO como causa (todos testados com um clid real): formato/decode do clid, permissão
+do token, id da WABA (correto), phone number id no lugar da WABA, page_id, nenhum id, dataset
+(mensagens e LP), nome do evento (custom e padrão), `test_event_code`. Todos dão o mesmo `code 1`.
+
+**Consequência:** não dá para consertar isso no código. Só migrando o número para a **Cloud API** —
+o que **quebraria o uazapi** (um número não roda nos dois ao mesmo tempo) e, com ele, a caixa de
+entrada e o envio do CRM. Dado que o CTWA responde por ~3% das conversas (6 de 219), a troca não
+compensa: o recomendado é manter o uazapi, otimizar as campanhas Meta pela métrica nativa de
+**conversas iniciadas** (que a Meta já contabiliza sozinha no CTWA, sem CAPI) e usar o funil do
+dashboard para a leitura comercial interna.
 
 **Restrição de categoria (saúde) — problema SEPARADO, não é a causa do `code 1`.** O BM mostra
 "Foram aplicadas restrições à partilha de dados… categorias com restrições". É a mesma restrição que
