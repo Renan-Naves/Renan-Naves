@@ -77,6 +77,10 @@ export async function onRequestGet(context) {
     omitAccountIds: ids === 'none',
     preferPageId: ids === 'page',
     suppressEnvTestCode: noTestCode,
+    // ?pixel=<dataset id> — a real ctwa_clid only resolves against the dataset
+    // that actually owns the conversation, so this tells us whether the
+    // configured messaging dataset is the right one.
+    pixelIdOverride: url.searchParams.get('pixel') || undefined,
   });
 
   return json({

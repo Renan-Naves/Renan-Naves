@@ -33,9 +33,9 @@ export async function sendMetaMessagingConversion({
   // Diagnostic-only overrides (used by /api/test-meta-conversion to isolate which
   // identifier Meta accepts for a given CTWA conversation). Production callers
   // never pass these and keep the env-driven behaviour below.
-  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId, suppressEnvTestCode,
+  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId, suppressEnvTestCode, pixelIdOverride,
 }) {
-  const pixelId = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
+  const pixelId = pixelIdOverride || env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
   const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
   if (!pixelId || !accessToken) {
     return { skipped: 'missing meta env' };
