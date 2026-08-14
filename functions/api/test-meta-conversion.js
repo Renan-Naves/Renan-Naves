@@ -50,6 +50,24 @@ export async function onRequestGet(context) {
     } catch (e) { objectProbe = { error: e.message }; }
   }
 
+  // Who IS this token, and can it see the WhatsApp Business Account? A real
+  // ctwa_clid is resolved against the WABA that owns the conversation, so a
+  // token that can't even read the WABA can't attribute the conversion.
+  const probes = {};
+  if (waToken) {
+    for (const [name, path] of [
+      ['identidade', 'me?fields=id,name'],
+      ['waba', `${env.META_WA_BUSINESS_ACCOUNT_ID || ''}?fields=id,name,currency,owner_business_info`],
+      ['page', `${env.META_WA_PAGE_ID || ''}?fields=id,name`],
+    ]) {
+      if (path.startsWith('?')) continue;
+      try {
+        const r = await fetch(`https://graph.facebook.com/v25.0/${path}${path.includes('?') ? '&' : '?'}access_token=${waToken}`);
+        probes[name] = { status: r.status, body: (await r.text().catch(() => '')).slice(0, 300) };
+      } catch (e) { probes[name] = { error: e.message }; }
+    }
+  }
+
   // Identifier overrides, to isolate WHICH account id Meta accepts for a real
   // ctwa_clid: ?ids=waba|page|none (default: env behaviour), plus explicit
   // ?waba=<id> / ?page_id=<id>. A real clid that clears the 2804087 clid check
@@ -89,6 +107,9 @@ export async function onRequestGet(context) {
     pixel_used: env.META_WA_PIXEL_ID || env.META_PIXEL_ID || null,
     using_wa_pixel: !!env.META_WA_PIXEL_ID,
     object_probe: objectProbe,
+    token_probes: probes,
+    waba_id: env.META_WA_BUSINESS_ACCOUNT_ID || null,
+    page_id: env.META_WA_PAGE_ID || null,
     ctwa_clid_used: ctwaClid,
     test_event_code: testEventCode || env.META_WA_TEST_EVENT_CODE || env.META_TEST_EVENT_CODE || null,
     skipped: result.skipped || null,
