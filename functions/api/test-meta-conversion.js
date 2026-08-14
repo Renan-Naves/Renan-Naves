@@ -45,6 +45,18 @@ export async function onRequestGet(context) {
     } catch (e) { objectProbe = { error: e.message }; }
   }
 
+  // Identifier overrides, to isolate WHICH account id Meta accepts for a real
+  // ctwa_clid: ?ids=waba|page|none (default: env behaviour), plus explicit
+  // ?waba=<id> / ?page_id=<id>. A real clid that clears the 2804087 clid check
+  // but then fails generically usually means the id doesn't own that conversation.
+  const ids = (url.searchParams.get('ids') || '').toLowerCase();
+  const wabaParam = url.searchParams.get('waba') || undefined;
+  const pageParam = url.searchParams.get('page_id') || undefined;
+  // event_time can be overridden too — CTWA conversions older than Meta's window
+  // are rejected, which looks like a wiring failure but isn't.
+  const ageDays = parseFloat(url.searchParams.get('age_days') || '');
+  const eventTime = Math.floor(Date.now() / 1000) - (Number.isNaN(ageDays) ? 0 : Math.round(ageDays * 86400));
+
   const result = await sendMetaMessagingConversion({
     env,
     eventName,
@@ -53,8 +65,12 @@ export async function onRequestGet(context) {
     valueCents,
     currency: 'BRL',
     eventId: `test-meta-${type}-${Date.now()}`,
-    eventTime: Math.floor(Date.now() / 1000),
+    eventTime,
     testEventCode,
+    wabaIdOverride: wabaParam,
+    pageIdOverride: pageParam,
+    omitAccountIds: ids === 'none',
+    preferPageId: ids === 'page',
   });
 
   return json({
@@ -68,6 +84,8 @@ export async function onRequestGet(context) {
     skipped: result.skipped || null,
     status: result.response?.status ?? null,
     ok: result.response?.ok ?? null,
+    // the exact event we sent, with the clid trimmed (it's ~430 chars)
+    payload_sent: (result.payload || '').replace(/("ctwa_clid":")([^"]{20})[^"]*/, '$1$2…').slice(0, 700),
     meta_response: (result.body || '').slice(0, 1500),
   });
 }

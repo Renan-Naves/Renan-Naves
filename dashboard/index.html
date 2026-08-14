@@ -581,11 +581,11 @@
   var lastReport = null, originFilterBuilt = false;
 
   // ------------------------------------------------------------------ //
-  // SOFT-DISABLE — abas temporariamente desativadas até reativarmos.    //
-  // Enquanto estiverem nesta lista, o /dashboard só mostra "Resultados"; //
-  // o acompanhamento de leads/eventos segue pelo /public. Para RELIGAR   //
-  // uma aba, basta removê-la desta lista (esvazie p/ ligar todas).       //
-  var DISABLED_TABS = ['whatsapp','atribuicao'];
+  // SOFT-DISABLE — mecanismo de desativação de abas (hoje: NENHUMA).    //
+  // Lista vazia = todas as abas ligadas. Para desativar uma aba de novo,//
+  // basta colocar o id dela aqui ('whatsapp' | 'atribuicao') — esconde  //
+  // o botão e curto-circuita o loader; nada precisa ser removido.       //
+  var DISABLED_TABS = [];
   function tabEnabled(t){ return DISABLED_TABS.indexOf(t) < 0; }
   // ------------------------------------------------------------------ //
   var ORIGINS = [

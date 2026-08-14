@@ -35,12 +35,6 @@ export async function onRequestPost(context) {
   let payload;
   try { payload = await request.json(); } catch (_) { return json({ error: 'Invalid JSON' }, 400); }
 
-  // TEMP DIAGNOSTIC (remove after CTWA shape confirmed): capture the raw inbound
-  // payload so we can confirm the uazapi CTWA `referral`/`ctwa_clid` field path
-  // against a real ad-click message. Best-effort — never blocks the webhook.
-  // Read it back via GET /api/wa-debug?key=<DASH_KEY>&ref=1.
-  try { await captureRaw(env, payload); } catch (_) { /* diagnostic must not 500 the webhook */ }
-
   const msg = normalise(payload);
   if (!msg || !msg.chatId) {
     // connection / qrcode / status events (no chat) land here harmlessly
@@ -54,16 +48,37 @@ export async function onRequestPost(context) {
   // create or re-attribute a conversation — but record them so the CRM thread
   // stays complete and last_outbound_at is accurate.
   if (msg.fromMe) {
+    let enriched = false;
     try {
-      const conv = await env.DB.prepare('SELECT id FROM wa_conversations WHERE wa_chat_id = ?')
+      const conv = await env.DB.prepare('SELECT id, ctwa_clid FROM wa_conversations WHERE wa_chat_id = ?')
         .bind(msg.chatId).first();
       if (conv) {
         await insertMessage(env, { conversationId: conv.id, chatId: msg.chatId, messageId: msg.messageId, direction: 'out', body: msg.text, senderName: msg.name, msgAt, now });
         await env.DB.prepare('UPDATE wa_conversations SET last_outbound_at = ?, updated_at = ? WHERE id = ?')
           .bind(msgAt, now, conv.id).run();
+
+        // Safety net: WhatsApp keeps the ad's contextInfo on OUR replies in a
+        // CTWA thread too. If the inbound message somehow arrived without it
+        // (payload truncated, webhook retry, thread started before this fix),
+        // an outbound echo can still recover the ctwa_clid. Never creates a
+        // conversation and never overwrites attribution we already have.
+        const clid = msg.referral && (msg.referral.ctwa_clid || msg.referral.ctwaClid || msg.referral.clickId);
+        if (clid && !conv.ctwa_clid) {
+          await env.DB.prepare(`
+            UPDATE wa_conversations
+               SET ctwa_clid = ?,
+                   platform    = CASE WHEN platform IN ('unknown','') OR platform IS NULL THEN 'meta' ELSE platform END,
+                   link_method = CASE WHEN link_method IN ('unresolved','') OR link_method IS NULL THEN 'ctwa' ELSE link_method END,
+                   utm_source  = COALESCE(utm_source, 'meta-ads'),
+                   referral_raw = COALESCE(referral_raw, ?),
+                   updated_at  = ?
+             WHERE id = ?`)
+            .bind(clid, msg.referralRaw, now, conv.id).run();
+          enriched = true;
+        }
       }
     } catch (_) { /* best-effort: thread completeness must not 500 the webhook */ }
-    return json({ ok: true, chat_id: msg.chatId, recorded: 'outbound' });
+    return json({ ok: true, chat_id: msg.chatId, recorded: 'outbound', ctwa_enriched: enriched });
   }
 
   const resolved = await resolveAttribution(env, msg);
@@ -130,26 +145,29 @@ async function insertMessage(env, m) {
 // webhook envelope carries `EventType`. The reads below stay permissive (older
 // camelCase / Baileys `key.remoteJid` shapes still resolve) so a wiring mistake
 // degrades to 'unresolved' instead of dropping the message.
-// CONFIRM the exact paths against a REAL captured payload before go-live — in
-// particular the click-to-WhatsApp ad `referral`/ctwa_clid path, which varies.
+// CONFIRMED against real captured payloads on 2026-08-14 (including a real
+// click-to-WhatsApp ad message) — see extractReferral() for the CTWA shape.
 function normalise(p) {
   const m = p.message || p.data || p.messages?.[0] || p;
   if (!m) return null;
+  // uazapi v2 nests the message body under `content` (an object: { text, contextInfo, ... }).
+  const content = (m.content && typeof m.content === 'object') ? m.content : null;
   // uazapi v2 uses lowercase `chatid`; keep camelCase + Baileys fallbacks too
   const chatId = m.chatid || m.chatId || m.chat_id || m.from || m.key?.remoteJid || p.chatId || '';
-  const text = m.text || m.content || m.body || m.caption || m.message?.conversation
+  const text = m.text || content?.text || (typeof m.content === 'string' ? m.content : '')
+    || m.body || m.caption || m.message?.conversation
     || m.message?.extendedTextMessage?.text || '';
   // The dialable phone lives in the @s.whatsapp.net / @c.us JID (chatid). uazapi
   // v2's `sender` is frequently the privacy @lid (a non-dialable WhatsApp id), so
-  // prefer the JID user-part and only fall back to sender/from when chatid isn't
-  // a phone JID (e.g. an @lid chat).
+  // prefer the JID user-part, then `sender_pn` (the phone-number JID uazapi sends
+  // alongside the @lid), and only then fall back to sender/from.
   const phoneJid = /@(?:s\.whatsapp\.net|c\.us)$/i.test(chatId) ? chatId.split('@')[0] : '';
-  const phone = String(phoneJid || m.sender || m.from || m.author || '').replace(/[^0-9]/g, '');
+  const senderPn = /@(?:s\.whatsapp\.net|c\.us)$/i.test(m.sender_pn || '') ? String(m.sender_pn).split('@')[0] : '';
+  const phone = String(phoneJid || senderPn || m.sender || m.from || m.author || '').replace(/[^0-9]/g, '');
   const name = m.senderName || m.pushName || m.notifyName || m.contact?.name || '';
   // skip our own / API-sent messages (uazapi: fromMe, wasSentByApi)
   const fromMe = !!(m.fromMe || m.fromme || m.wasSentByApi || m.key?.fromMe);
-  const referral = m.referral || m.message?.referral
-    || m.contextInfo?.externalAdReply || m.message?.contextInfo?.externalAdReply || null;
+  const referral = extractReferral(m, content);
   // message id (dedup) and timestamp — permissive across uazapi v2 / Baileys shapes
   const messageId = m.id || m.messageid || m.messageId || m.key?.id || p.id || null;
   const tsRaw = m.messageTimestamp || m.messagetimestamp || m.messageTimestampMs || m.timestamp || m.t || null;
@@ -171,6 +189,60 @@ function normalise(p) {
   };
 }
 
+// Pull the Click-to-WhatsApp ad data out of a uazapi message.
+//
+// CONFIRMED shape (real payloads, 2026-08-14): uazapi carries it in the message's
+// contextInfo — NOT in a `referral` object (that's the WhatsApp Cloud API shape,
+// still accepted below as a fallback):
+//
+//   message.content.contextInfo = {
+//     conversionSource: "FB_Ads",
+//     conversionData:   "<base64 of the ctwa_clid>",   // ctwaPayload repeats it
+//     entryPointConversionSource: "ctwa_ad",
+//     entryPointConversionApp:    "instagram",
+//     externalAdReply: { title, body, sourceUrl, sourceId, mediaURL, thumbnail }
+//   }
+//
+// We return a COMPACT object: externalAdReply.thumbnail is a multi-KB base64 JPEG
+// and must never reach referral_raw.
+function extractReferral(m, content) {
+  // WhatsApp Cloud API / older shapes first — if one carries a clid, trust it.
+  const legacy = m.referral || m.message?.referral || null;
+  if (legacy && (legacy.ctwa_clid || legacy.ctwaClid || legacy.clickId)) return legacy;
+
+  const ctx = content?.contextInfo || m.contextInfo || m.message?.contextInfo || null;
+  if (!ctx) return legacy;
+
+  const clid = decodeCtwaClid(ctx.conversionData || ctx.ctwaPayload || '');
+  const ext = ctx.externalAdReply || null;
+  if (!clid && !ext && !ctx.conversionSource) return legacy;
+
+  return {
+    ctwa_clid: clid,
+    conversion_source: ctx.conversionSource || null,          // "FB_Ads"
+    entry_point: ctx.entryPointConversionSource || null,      // "ctwa_ad"
+    entry_point_app: ctx.entryPointConversionApp || null,     // "instagram" | "facebook"
+    title: ext?.title || null,
+    body: ext?.body ? String(ext.body).slice(0, 300) : null,
+    source_url: ext?.sourceUrl || ext?.source_url || null,
+    source_id: ext?.sourceId || ext?.source_id || null,
+    media_url: ext?.mediaURL || ext?.mediaUrl || null,
+  };
+}
+
+// conversionData holds the ctwa_clid base64-encoded; Meta's CAPI wants the plain
+// clid (a ~426-char "Af..." string). If it doesn't decode to something clid-shaped
+// we keep the raw value rather than dropping the attribution entirely.
+function decodeCtwaClid(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return null;
+  try {
+    const dec = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
+    if (dec.length > 20 && /^[\x20-\x7E]+$/.test(dec)) return dec;
+  } catch (_) { /* not base64 — fall through */ }
+  return /^[\w-]{20,}$/.test(raw) ? raw : null;
+}
+
 async function resolveAttribution(env, msg) {
   const base = {
     phone: msg.phone, name: msg.name, platform: 'unknown', linkMethod: 'unresolved',
@@ -179,12 +251,17 @@ async function resolveAttribution(env, msg) {
   };
 
   // 1) Meta CTWA referral
-  const ctwa = msg.referral && (msg.referral.ctwa_clid || msg.referral.ctwaClid || msg.referral.clickId);
+  const ref = msg.referral || null;
+  const ctwa = ref && (ref.ctwa_clid || ref.ctwaClid || ref.clickId);
   if (ctwa) {
     return {
       ...base, platform: 'meta', linkMethod: 'ctwa', ctwaClid: ctwa,
-      utmContent: msg.referral.source_id || msg.referral.ad_id || msg.referral.body || null,
-      utmCampaign: msg.referral.headline || null,
+      // tag it like the rest of the Meta traffic so resolveOrigin() and the
+      // attribution table read the same way for CTWA and for LP-routed Meta.
+      utmSource: 'meta-ads',
+      utmMedium: ref.entry_point_app ? 'ctwa-' + ref.entry_point_app : 'ctwa',
+      utmCampaign: ref.title || ref.headline || null,
+      utmContent: ref.source_id || ref.ad_id || (ref.body ? String(ref.body).slice(0, 120) : null),
     };
   }
 
@@ -208,20 +285,6 @@ async function resolveAttribution(env, msg) {
   }
 
   return base;
-}
-
-// TEMP DIAGNOSTIC (remove with the call site above once the CTWA shape is
-// confirmed). Stores the raw inbound payload in wa_raw_debug, flagging rows that
-// look like they carry an ad referral so the CTWA first-message is easy to find.
-async function captureRaw(env, payload) {
-  if (!env.DB) return;
-  await env.DB.prepare(
-    'CREATE TABLE IF NOT EXISTS wa_raw_debug (id INTEGER PRIMARY KEY AUTOINCREMENT, raw TEXT, has_ref INTEGER, created_at INTEGER)'
-  ).run();
-  const raw = JSON.stringify(payload);
-  const hasRef = /ctwa|external_?ad_?reply|referral|source_id|sourceUrl|conversion_source|click_id/i.test(raw) ? 1 : 0;
-  await env.DB.prepare('INSERT INTO wa_raw_debug (raw, has_ref, created_at) VALUES (?, ?, ?)')
-    .bind(raw.slice(0, 8000), hasRef, Math.floor(Date.now() / 1000)).run();
 }
 
 function json(body, status = 200) {

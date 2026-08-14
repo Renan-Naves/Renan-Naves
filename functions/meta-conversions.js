@@ -30,6 +30,10 @@ const GRAPH_VERSION = 'v25.0';
 
 export async function sendMetaMessagingConversion({
   env, eventName, ctwaClid, phone, valueCents, currency, eventId, eventTime, testEventCode,
+  // Diagnostic-only overrides (used by /api/test-meta-conversion to isolate which
+  // identifier Meta accepts for a given CTWA conversation). Production callers
+  // never pass these and keep the env-driven behaviour below.
+  wabaIdOverride, pageIdOverride, omitAccountIds, preferPageId,
 }) {
   const pixelId = env.META_WA_PIXEL_ID || env.META_PIXEL_ID;
   const accessToken = env.META_WA_ACCESS_TOKEN || env.META_ACCESS_TOKEN;
@@ -45,10 +49,14 @@ export async function sendMetaMessagingConversion({
   // identificação da Página ou da conta do WhatsApp Business"). The WABA id is
   // the natural one for the WhatsApp channel; page_id is accepted as fallback.
   const userData = { ctwa_clid: ctwaClid };
-  if (env.META_WA_BUSINESS_ACCOUNT_ID) {
-    userData.whatsapp_business_account_id = String(env.META_WA_BUSINESS_ACCOUNT_ID);
-  } else if (env.META_WA_PAGE_ID) {
-    userData.page_id = String(env.META_WA_PAGE_ID);
+  const wabaId = wabaIdOverride || (preferPageId ? '' : env.META_WA_BUSINESS_ACCOUNT_ID);
+  const pageId = pageIdOverride || env.META_WA_PAGE_ID;
+  if (omitAccountIds) {
+    /* diagnostic: send neither, to see which identifier Meta demands */
+  } else if (wabaId) {
+    userData.whatsapp_business_account_id = String(wabaId);
+  } else if (pageId) {
+    userData.page_id = String(pageId);
   }
   const hashedPh = await sha256(normalizePhone(phone, env.DEFAULT_COUNTRY_CODE));
   if (hashedPh) userData.ph = [hashedPh];
