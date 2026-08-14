@@ -12,20 +12,16 @@ URL: `/dashboard/`
 - **Integrations:** lê via `GET /api/campaign-report` e `GET /api/leads-inbox`; grava via
   `POST /api/mark-conversion`. Nenhum pixel/tracker dispara aqui (middleware ignora `/dash*`).
 
-## ⚠️ Estado atual (2026-06-16): abas WhatsApp/Comercial + Atribuição (UTM) em SOFT-DISABLE
+## Estado atual (2026-08-14): TODAS as abas ligadas
 
-As abas **WhatsApp / Comercial** e **Atribuição (UTM)** estão **desativadas a pedido do cliente**
-até reativarmos quando formos implementar. Só a aba **Resultados** está visível. O acompanhamento
-de leads/eventos segue pelo **`/public`** (que continua lendo `/api/leads-inbox` + `/api/leads`).
+O soft-disable foi **revertido** — `var DISABLED_TABS = [];` no `dashboard/index.html`. As três abas
+(Resultados, WhatsApp/Comercial, Atribuição) estão visíveis e o sistema de atendimento está no ar.
+O mecanismo continua existindo: para desativar uma aba de novo, basta pôr o id dela
+(`'whatsapp'` | `'atribuicao'`) na lista — esconde o botão e curto-circuita o loader.
 
-- Implementado com **uma flag única** no `dashboard/index.html`: `var DISABLED_TABS = ['whatsapp','atribuicao'];`
-- Os botões dessas abas ficam escondidos; `loadInbox()` e `loadAttribution()` têm um guard
-  `if(!tabEnabled(t)) return;` no topo (cobre todos os call sites).
-- **Para RELIGAR:** remova a aba de `DISABLED_TABS` (ou esvazie a lista p/ ligar todas). É a única
-  mudança necessária — nada foi removido; toda a UI/lógica das abas continua no arquivo.
-- Soft-disable é só client-side (esconde a UI). Os endpoints `/api/leads-inbox` e `/api/utm-attribution`
-  seguem respondendo se chamados direto com a `DASH_KEY` — proposital, pois o `/public` usa o `leads-inbox`.
-- A captura de leads (webhook → `wa_conversations` / `event_log`) e o resto seguem **intactos**.
+**⚠️ Uma pendência fora do código bloqueia só o disparo de conversão Meta (CTWA)** — ver
+`## Conversão CTWA: bloqueio do lado da Meta`. Todo o resto (inbox, thread, resposta, marcação
+de funil, atribuição, indicações) funciona.
 
 ## Funil (modelo desta LP — sem formulário)
 
@@ -61,6 +57,38 @@ de leads/eventos segue pelo **`/public`** (que continua lendo `/api/leads-inbox`
 - **Excluir = soft-delete:** marca `deleted_at`, some das listas, mas preserva atribuição/auditoria.
   Pede confirmação digitando o **nome exato** do contato. **Arquivar** marca `archived_at` (some das
   abas normais, aparece só em "Arquivados"); desarquivar limpa.
+
+## Conversão CTWA: bloqueio do lado da Meta (investigado 2026-08-14)
+
+Marcar **Qualificado/Venda** num lead do Meta dispara um evento `business_messaging` por
+`ctwa_clid`. Hoje esse disparo **falha** — a marcação no funil funciona, mas a Meta não recebe
+o sinal (a UI avisa: "Marcado no funil, mas a conversão NÃO foi enviada…").
+
+O que foi isolado (com um `ctwa_clid` REAL, capturado de um anúncio de verdade):
+- O clid está **certo**: o valor decodificado passa na validação da Meta; o base64 cru é
+  rejeitado com subcode 2804087. Ou seja, a captura e o decode estão corretos.
+- O erro é sempre `code 1 / "An unknown error has occurred"` (HTTP 500), **independente** de:
+  nome do evento (custom `QualifiedLead` ou padrão `Purchase`), identificador de conta
+  (`whatsapp_business_account_id`, `page_id` ou nenhum) e `test_event_code` (com ou sem).
+- Testado contra os 3 datasets do BM: o de mensagens e o da LP dão o mesmo `code 1`; o antigo
+  dá subcode 33 (o token não o alcança).
+- **O dataset configurado (`META_WA_PIXEL_ID` = 973421805455371, "Pixel WhatsApp") nunca recebeu
+  um único evento** (`last_fired_time` = epoch zero) e foi criado à mão. Um `GET` nele com o
+  token retorna `(#100) Missing Permission`.
+
+Hipótese mais provável: **o dataset não está conectado à conta do WhatsApp Business**. A CAPI de
+business messaging só resolve um `ctwa_clid` real contra o dataset que é dono daquela conversa —
+e essa ligação (Events Manager / WhatsApp Manager → conectar dataset à WABA) parece nunca ter
+sido feita. Vale checar também se o número, conectado via **uazapi (WhatsApp Web/Baileys, não a
+Cloud API oficial)**, tem uma WABA oficial à qual conectar um dataset.
+
+Diagnóstico p/ retomar: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified` com
+`&ctwa_clid=<real>` (pegue um em `wa_conversations`), `&no_test_code=1` (dispara de verdade),
+`&pixel=<dataset>`, `&ids=waba|page|none`, `&waba=`/`&page_id=`, `&age_days=`.
+
+**Também pendente:** remover `META_WA_TEST_EVENT_CODE` das env vars de produção. Enquanto ela
+existir, `meta-conversions.js` cai nela quando o chamador não passa código — e **toda** conversão
+marcada no dashboard vai para Test Events em vez de contar.
 
 ## Notes
 
@@ -116,3 +144,11 @@ de leads/eventos segue pelo **`/public`** (que continua lendo `/api/leads-inbox`
   fica visível; acompanhamento de leads migrou para o **`/public`** (que ganhou a aba **Eventos** —
   inspeciona o payload Meta CAPI/GA4 enviado). Telefone passou a exibir `(DD) 9 NNNN-NNNN`. Reversível
   removendo a aba de `DISABLED_TABS`.
+- 2026-08-14 — **atendimento religado**: `DISABLED_TABS = []` (as três abas no ar). A atribuição
+  CTWA passou a funcionar de verdade — o `ctwa_clid` do uazapi vem em
+  `message.content.contextInfo.conversionData` (base64), não num objeto `referral`; forma confirmada
+  contra payloads reais e backfill feito nas 6 conversas CTWA históricas. A UI agora avisa quando o
+  disparo de conversão **falha** (antes só avisava quando era "pulado"). Removido o diagnóstico TEMP
+  (`captureRaw` + `/api/wa-debug`) e dropada a `wa_raw_debug` (8.113 payloads, 61 MB → 25 MB, e o
+  token do uazapi em texto puro dentro deles). Disparo de conversão Meta segue bloqueado — ver
+  `## Conversão CTWA`.
