@@ -952,7 +952,14 @@
       .then(function(res){ $('modal-ok').disabled=false;
         if(!res.ok){ var e=$('modal-error'); e.textContent=res.j.error||'Falha ao marcar.'; e.classList.remove('hidden'); return; }
         closeMark(); loadInbox(); loadReport(); if(crmId!=null) loadCrm(); if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); }
-        if(res.j.fire && res.j.fire.fired===false && res.j.fire.reason){ showNotice('Marcado, mas a conversão não foi enviada: '+res.j.fire.reason); }
+        // Avisa SEMPRE que a conversão não subiu — não só quando foi "pulada".
+        // Um erro da plataforma (ex.: HTTP 500) não pode passar por sucesso:
+        // o funil fica marcado aqui, mas o anúncio não recebe o sinal.
+        var f=res.j.fire;
+        if(f && f.fired===false){
+          var motivo = f.reason ? (': '+f.reason) : (f.status ? (' (erro '+f.status+' da plataforma)') : '');
+          showNotice('Marcado no funil, mas a conversão NÃO foi enviada para '+(f.platform||'a plataforma')+motivo+'.');
+        }
       }).catch(function(){ $('modal-ok').disabled=false; var e=$('modal-error'); e.textContent='Erro de rede.'; e.classList.remove('hidden'); });
   }
 
