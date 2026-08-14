@@ -19,9 +19,8 @@ O soft-disable foi **revertido** — `var DISABLED_TABS = [];` no `dashboard/ind
 O mecanismo continua existindo: para desativar uma aba de novo, basta pôr o id dela
 (`'whatsapp'` | `'atribuicao'`) na lista — esconde o botão e curto-circuita o loader.
 
-**⚠️ Uma pendência fora do código bloqueia só o disparo de conversão Meta (CTWA)** — ver
-`## Conversão CTWA: bloqueio do lado da Meta`. Todo o resto (inbox, thread, resposta, marcação
-de funil, atribuição, indicações) funciona.
+Tudo verificado em produção: inbox, thread, resposta (uazapi), marcação de funil, atribuição,
+indicações e o **disparo de conversão CTWA para a Meta** (ver `## Conversão CTWA`).
 
 ## Funil (modelo desta LP — sem formulário)
 
@@ -58,57 +57,44 @@ de funil, atribuição, indicações) funciona.
   Pede confirmação digitando o **nome exato** do contato. **Arquivar** marca `archived_at` (some das
   abas normais, aparece só em "Arquivados"); desarquivar limpa.
 
-## Conversão CTWA: bloqueio do lado da Meta (investigado 2026-08-14)
+## Conversão CTWA: FUNCIONA (consertado e verificado 2026-08-14)
 
 Marcar **Qualificado/Venda** num lead do Meta dispara um evento `business_messaging` por
-`ctwa_clid`. Hoje esse disparo **falha** — a marcação no funil funciona, mas a Meta não recebe
-o sinal (a UI avisa: "Marcado no funil, mas a conversão NÃO foi enviada…").
+`ctwa_clid`, e isso **sobe para a Meta**: `POST /api/mark-conversion` → `fired:true, status:200`,
+resposta `{"events_received":1}`, auditado em `conversion_fires`. Testado de ponta a ponta pelo
+endpoint real do dashboard. **Funciona com uazapi — não precisa migrar para a Cloud API.**
 
-O que foi isolado (com um `ctwa_clid` REAL, capturado de um anúncio de verdade):
-- O clid está **certo**: o valor decodificado passa na validação da Meta; o base64 cru é
-  rejeitado com subcode 2804087. Ou seja, a captura e o decode estão corretos.
-- O erro é sempre `code 1 / "An unknown error has occurred"` (HTTP 500), **independente** de:
-  nome do evento (custom `QualifiedLead` ou padrão `Purchase`), identificador de conta
-  (`whatsapp_business_account_id`, `page_id` ou nenhum) e `test_event_code` (com ou sem).
-- Testado contra os 3 datasets do BM: o de mensagens e o da LP dão o mesmo `code 1`; o antigo
-  dá subcode 33 (o token não o alcança).
-- **O dataset configurado (`META_WA_PIXEL_ID` = 973421805455371, "Pixel WhatsApp") nunca recebeu
-  um único evento** (`last_fired_time` = epoch zero) e foi criado à mão. Um `GET` nele com o
-  token retorna `(#100) Missing Permission`.
+Foram **dois bugs**, os dois nossos:
 
-### CAUSA RAIZ (confirmada 2026-08-14): o número não está na Cloud API
+**1. Campo do clid errado.** O `ctwa_clid` real é `contextInfo.externalAdReply.ctwaClid` (~138
+chars). Estávamos decodificando `contextInfo.conversionData`, que vira uma string `Af…` de ~426
+chars — *parecidíssima* com um clid, mas é outro valor, e a Meta rejeita. A armadilha: o campo certo
+fica **depois** do `thumbnail` (JPEG base64 de vários KB) dentro do `externalAdReply`, então some
+em qualquer payload truncado. O `conversionData`/`ctwaPayload` agora é guardado como
+`ctwa_payload_b64`, explicitamente separado do clid. De quebra, `sourceID`/`sourceURL` passaram a
+ser lidos com o nome certo (antes vinham null, e o `utm_content` acabava recebendo o TEXTO do anúncio).
 
-Depois de eliminar tudo o que era eliminável, sobrou a diferença estrutural. Sondando a WABA com o
-token (já regenerado e com permissão total — `GET /me` 200 "Uazappi Renan", `GET <waba>` 200,
-`GET <dataset>` 200):
+**2. Identificador de conta errado.** `user_data` leva **`page_id`**, não `whatsapp_business_account_id`.
+Com a WABA a Meta devolve subcode **2804132** — *"para eventos de CTWA a identificação do conjunto de
+dados … deve ter uma conta do WhatsApp Business associada"*: este dataset não tem WABA associada.
+Com `page_id` não precisa dessa ligação → 200.
 
-```
-GET /437676086092498/phone_numbers
-  id: 468831442978015
-  display_phone_number: +55 11 91846-8794
-  verified_name: Atendimento Dr. Renan Naves
-  platform_type: ON_PREMISE        <-- NÃO é CLOUD_API
-  quality_rating: UNKNOWN
-```
+**Referência:** o `krob-whatsapp-tracking-v1` (em `b:\One Tree Eitch\Repositórios\`) roda o mesmo modelo
+com uazapi e funciona — `docs/ctwa-findings.md` e `functions/lib/capi.js` são a fonte de verdade da forma
+do payload. Ele também documenta que `business_messaging` só aceita `LeadSubmitted`, `Purchase` e
+`QualifiedLead` como `event_name` (`Lead` é rejeitado com 2804066).
 
-A **Conversions API for Business Messaging só funciona para números na WhatsApp Business Platform
-(Cloud API)**. Este número roda no dia a dia via **uazapi (WhatsApp Web/Baileys)** e, nos registros
-da Meta, é uma WABA do tipo "App WhatsApp Business" com número `ON_PREMISE` sem integração ativa
-(`quality_rating: UNKNOWN`). Não existe integração server-side à qual pendurar a conversão — por isso
-a Meta resolve o clid e depois falha com erro genérico.
+**Nota sobre o `platform_type: ON_PREMISE`** do número (`GET <waba>/phone_numbers` → `+55 11 91846-8794`):
+é **irrelevante** para isso. Uma versão anterior deste doc concluiu, erradamente, que ele exigiria migrar
+para a Cloud API. Não exige — o disparo funciona com o número no uazapi.
 
-O que foi ELIMINADO como causa (todos testados com um clid real): formato/decode do clid, permissão
-do token, id da WABA (correto), phone number id no lugar da WABA, page_id, nenhum id, dataset
-(mensagens e LP), nome do evento (custom e padrão), `test_event_code`. Todos dão o mesmo `code 1`.
+**Dados históricos:** dos 6 leads CTWA antigos, 3 tiveram o clid real recuperado dos payloads salvos
+(Michelli, Cleide, Paulinho — com o id do anúncio); os outros 3 (Teresa, Claudia, Elisa) ficaram com
+`ctwa_clid = NULL`, porque só existia o valor errado e a `wa_raw_debug` já tinha sido dropada. Eles
+continuam atribuídos a Meta Ads (via `platform`/`utm_source`), só não dá para disparar conversão neles.
+Daqui pra frente todo lead CTWA novo entra com o clid certo.
 
-**Consequência:** não dá para consertar isso no código. Só migrando o número para a **Cloud API** —
-o que **quebraria o uazapi** (um número não roda nos dois ao mesmo tempo) e, com ele, a caixa de
-entrada e o envio do CRM. Dado que o CTWA responde por ~3% das conversas (6 de 219), a troca não
-compensa: o recomendado é manter o uazapi, otimizar as campanhas Meta pela métrica nativa de
-**conversas iniciadas** (que a Meta já contabiliza sozinha no CTWA, sem CAPI) e usar o funil do
-dashboard para a leitura comercial interna.
-
-**Restrição de categoria (saúde) — problema SEPARADO, não é a causa do `code 1`.** O BM mostra
+**Restrição de categoria (saúde) — problema SEPARADO, e não impediu o disparo.** O BM mostra
 "Foram aplicadas restrições à partilha de dados… categorias com restrições". É a mesma restrição que
 já suprimiu o evento padrão `Lead` no pixel da LP. Quando ela bate, a Meta **aceita e descarta em
 silêncio** (a CAPI responde `events_received:1`) — não devolve 500. Regra prática que vale aqui:

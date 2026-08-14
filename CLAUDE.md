@@ -169,17 +169,19 @@ Never persist `externalAdReply.thumbnail` (multi-KB base64 JPEG). Our replies (`
 contextInfo, so an outbound echo can recover a missing clid. CTWA rows are tagged
 `utm_source=meta-ads` / `utm_medium=ctwa-<app>`.
 
-**PERMANENT BLOCKER — the Meta CTWA conversion upload CANNOT work with this setup (root cause confirmed
-2026-08-14).** Meta's Conversions API for Business Messaging only supports numbers on the **WhatsApp
-Business Platform (Cloud API)**. This number is `platform_type: ON_PREMISE` (`GET <waba>/phone_numbers`
-→ `+55 11 91846-8794`, `quality_rating: UNKNOWN`) and runs on **uazapi (WhatsApp Web/Baileys)**, so there
-is no server-side integration to attach a conversion to: with a real `ctwa_clid` Meta always answers
-`code 1 / "An unknown error has occurred"`. Everything else was eliminated as a cause (clid decode, token
-permissions — since fixed and now 200 on WABA+dataset, WABA id, phone-number id, page_id, no id, both
-datasets, custom vs standard event name, test_event_code). Fixing it would require migrating the number
-to the Cloud API, which **would break uazapi** (and with it the CRM inbox + replies). Since CTWA is ~3%
-of conversations, the recommendation is to keep uazapi and optimise Meta campaigns on the native
-"conversas iniciadas" metric instead. Full evidence: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
+**CTWA conversion upload WORKS (fixed + verified end-to-end 2026-08-14).** `POST /api/mark-conversion`
+→ Meta `200 events_received:1`, audited in `conversion_fires`. It works fine with uazapi — **no Cloud API
+migration is needed** (an earlier diagnosis in this repo wrongly concluded otherwise; the `ON_PREMISE`
+platform_type is a red herring). Two bugs had to be fixed:
+1. **The clid field.** The real one is `contextInfo.externalAdReply.ctwaClid` (~138 chars). Decoding
+   `contextInfo.conversionData` yields a ~426-char `Af…` string that *looks* like a clid but is not, and
+   Meta rejects it. The real field sits AFTER the multi-KB base64 `thumbnail`, so it is invisible in a
+   truncated payload. See the webhook's `extractReferral()`.
+2. **The account identifier.** `user_data` must carry **`page_id`**, not `whatsapp_business_account_id` —
+   the latter returns subcode 2804132 ("para eventos de CTWA o conjunto de dados deve ter uma conta do
+   WhatsApp Business associada") because this dataset has no WABA linked. `page_id` needs no such link.
+Reference implementation running the same uazapi model: `b:\One Tree Eitch\Repositórios\krob-whatsapp-tracking-v1`
+(see its `docs/ctwa-findings.md` + `functions/lib/capi.js`). Full detail: `dashboard/CLAUDE.md`. Diagnostic: `GET /api/test-meta-conversion?key=DASH_KEY&type=qualified|purchase` fires a
 business_messaging event to pixel B (reports the pixel used + a read-only token probe); with a throwaway `ctwa_clid`
 it ends at subcode 2804087 ("ctwa_clid inválido"), which **confirms every other layer is wired** — a real CTWA clid
 is the only thing it can't fake. **Verified 2026-06-16:** token + dataset + page_id/WABA all green (reached 2804087).
