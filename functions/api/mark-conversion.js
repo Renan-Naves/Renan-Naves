@@ -18,8 +18,9 @@
 // Auth: ?key=<DASH_KEY>.
 
 import { sendGoogleOfflineConversion } from '../google-ads.js';
-import { sendMetaMessagingConversion } from '../meta-conversions.js';
 import { isValidOrigin } from '../origins.js';
+import { ensureCtwaSchema } from '../lib/ctwa-schema.js';
+import { conversionForWaConversation, fireQualifiedLead, firePurchase, normalizePhone } from '../lib/ctwa-capi.js';
 
 const ACTIONS = ['qualified', 'sale', 'lost', 'reset', 'origin', 'archive', 'unarchive', 'delete'];
 
@@ -168,7 +169,8 @@ async function fireConversion({ env, conv, eventName, valueCents, now }) {
     if (existing) return { skipped: 'already fired' };
   } catch (_) { /* conversion_fires not migrated → proceed best-effort */ }
 
-  const eventId = `conv-${conv.id}-${eventName.toLowerCase()}`;
+  // Meta: the tracker's stable per-click id; Google: per-conversation transaction id.
+  let eventId = `conv-${conv.id}-${eventName.toLowerCase()}`;
   let result, clickId = null, clickIdType = null;
 
   if (platform === 'google') {
@@ -182,11 +184,10 @@ async function fireConversion({ env, conv, eventName, valueCents, now }) {
       eventTime: now, transactionId: eventId, phone: conv.wa_phone,
     });
   } else {
-    clickId = conv.ctwa_clid; clickIdType = 'ctwa_clid';
-    result = await sendMetaMessagingConversion({
-      env, eventName, ctwaClid: conv.ctwa_clid, phone: conv.wa_phone,
-      valueCents, currency: conv.sale_currency || 'BRL', eventId, eventTime: now,
-    });
+    result = await fireMetaViaTracker({ env, conv, eventName, valueCents, now });
+    // audit what was actually sent: the tracker's click + its stable event id
+    clickId = result.clid || conv.ctwa_clid; clickIdType = 'ctwa_clid';
+    if (clickId) eventId = `${clickId}:${eventName === 'Purchase' ? 'purchase' : 'qualified'}`;
   }
 
   // audit (best-effort)
@@ -207,6 +208,39 @@ async function fireConversion({ env, conv, eventName, valueCents, now }) {
   return result.skipped
     ? { fired: false, platform, reason: result.skipped }
     : { fired: result.response?.ok || false, platform, status: result.response?.status };
+}
+
+// Meta (CTWA) marks go through the CTWA tracker (functions/lib/ctwa-capi.js), the
+// same engine as /rastreador and the auto-fire rules: the click's ctwa_conversions
+// row records the status (so rules / the rastreador never double-fire it), every
+// attempt lands in ctwa_capi_log, and event_ids are stable per click
+// (<clid>:qualified / <clid>:purchase). Returns the shape fireConversion audits.
+async function fireMetaViaTracker({ env, conv, eventName, valueCents, now }) {
+  try {
+    await ensureCtwaSchema(env);
+    // the contact's MOST RECENT ad click (a returning contact who clicked a new ad
+    // has a newer ctwa_conversions row than wa_conversations' first-touch clid)
+    let row = await env.DB.prepare(
+      'SELECT * FROM ctwa_conversions WHERE wa_conversation_id = ? ORDER BY first_seen_at DESC LIMIT 1',
+    ).bind(conv.id).first();
+    if (!row) {
+      if (!conv.ctwa_clid) return { skipped: 'no ctwa_clid' };
+      row = await conversionForWaConversation(env, conv);
+    }
+    const phone = normalizePhone(conv.wa_phone, env.DEFAULT_COUNTRY_CODE);
+    const r = eventName === 'Purchase'
+      ? await firePurchase(env, {
+        conversionId: row.id, ctwaClid: row.ctwa_clid, phone,
+        value: (valueCents || 0) / 100, currency: conv.sale_currency || 'BRL', eventTime: now,
+      })
+      : await fireQualifiedLead(env, {
+        conversionId: row.id, ctwaClid: row.ctwa_clid, adId: row.ad_id, phone, eventTime: now,
+      });
+    if (r.status === 'skipped_no_creds') return { skipped: String(r.response?.body || 'missing meta env'), clid: row.ctwa_clid };
+    return { response: { status: r.response?.status ?? null, ok: r.status === 'sent' }, body: r.response?.body || '', clid: row.ctwa_clid };
+  } catch (e) {
+    return { skipped: `tracker error: ${e.message}` };
+  }
 }
 
 // Prefer the gclid stored on the conversation; fall back to the linked session.

@@ -23,7 +23,19 @@
 // sample before go-live. The normalise() function below isolates that mapping —
 // adjust the field paths there once we have a captured payload.
 
+//
+// CTWA TRACKER (ported from the KROB WhatsApp stack v0.2 — see functions/lib/ctwa-*.js):
+//   - every webhook is stored raw in wa_webhook_events FIRST (source of truth,
+//     browsable at /rastreador → Eventos);
+//   - a message carrying a ctwa_clid upserts ctwa_conversions and, on the first
+//     sight of that click, fires Meta CAPI LeadSubmitted (+ ad-name enrichment)
+//     via waitUntil() — uazapi never waits on Meta;
+//   - every 1:1 text message is checked against the auto-fire rules (wa_auto_rules).
+
 import { originFromText } from '../../origins.js';
+import { ensureCtwaSchema } from '../../lib/ctwa-schema.js';
+import { upsertConversion, fireLead, enrichAdIfStale, normalizePhone } from '../../lib/ctwa-capi.js';
+import { evaluateAutoRules } from '../../lib/ctwa-rules.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -41,6 +53,8 @@ export async function onRequestPost(context) {
   try { payload = await request.json(); } catch (_) { return json({ error: 'Invalid JSON' }, 400); }
 
   const msg = normalise(payload);
+  // capture first — even connection/status events, so nothing uazapi sends is lost
+  const eventId = await captureEvent(env, payload, msg);
   if (!msg || !msg.chatId) {
     // connection / qrcode / status events (no chat) land here harmlessly
     return json({ ok: true, skipped: true, reason: 'no inbound message in payload' });
@@ -48,6 +62,15 @@ export async function onRequestPost(context) {
 
   const now = Math.floor(Date.now() / 1000);
   const msgAt = msg.msgAt || now;
+  const clidIn = msg.referral && (msg.referral.ctwa_clid || msg.referral.ctwaClid || msg.referral.clickId);
+
+  // auto-fire rules on every 1:1 text message, both directions (after the 200)
+  if (msg.text && msg.phone) {
+    context.waitUntil(evaluateAutoRules(env, {
+      text: msg.text, contactPhone: normalizePhone(msg.phone, env.DEFAULT_COUNTRY_CODE),
+      fromMe: msg.fromMe ? 1 : 0, eventTime: msgAt,
+    }).catch(() => {}));
+  }
 
   // Outgoing messages (a reply sent FROM the phone, fromMe): never let them
   // create or re-attribute a conversation — but record them so the CRM thread
@@ -67,7 +90,7 @@ export async function onRequestPost(context) {
         // (payload truncated, webhook retry, thread started before this fix),
         // an outbound echo can still recover the ctwa_clid. Never creates a
         // conversation and never overwrites attribution we already have.
-        const clid = msg.referral && (msg.referral.ctwa_clid || msg.referral.ctwaClid || msg.referral.clickId);
+        const clid = clidIn;
         if (clid && !conv.ctwa_clid) {
           await env.DB.prepare(`
             UPDATE wa_conversations
@@ -80,16 +103,15 @@ export async function onRequestPost(context) {
              WHERE id = ?`)
             .bind(clid, msg.referralRaw, now, conv.id).run();
           enriched = true;
+          await trackCtwa(context, { msg, clid, conversationId: conv.id, eventId, eventTime: msgAt });
         }
+        await linkEvent(env, eventId, conv.id);
       }
     } catch (_) { /* best-effort: thread completeness must not 500 the webhook */ }
     return json({ ok: true, chat_id: msg.chatId, recorded: 'outbound', ctwa_enriched: enriched });
   }
 
   const resolved = await resolveAttribution(env, msg);
-  if (!resolved.ctwaClid) {
-    try { await captureRaw(env, payload, msg); } catch (_) { /* TEMP diag must never break the webhook */ }
-  }
 
   let conversationId = null;
   try {
@@ -128,9 +150,89 @@ export async function onRequestPost(context) {
     try {
       await insertMessage(env, { conversationId, chatId: msg.chatId, messageId: msg.messageId, direction: 'in', body: msg.text, senderName: msg.name, msgAt, now });
     } catch (_) { /* wa_messages not migrated yet */ }
+    await linkEvent(env, eventId, conversationId);
   }
 
-  return json({ ok: true, chat_id: msg.chatId, platform: resolved.platform, link_method: resolved.linkMethod });
+  // CTWA: one ctwa_conversions row per click; the first sight fires LeadSubmitted.
+  // A returning contact who clicks a NEW ad gets a new row (new clid) even though
+  // wa_conversations keeps its first-touch attribution.
+  let ctwa = null;
+  if (resolved.ctwaClid) {
+    ctwa = await trackCtwa(context, { msg, clid: resolved.ctwaClid, conversationId, eventId, eventTime: msgAt });
+  }
+
+  return json({
+    ok: true, chat_id: msg.chatId, platform: resolved.platform, link_method: resolved.linkMethod,
+    event_id: eventId, ...(ctwa ? { ctwa_conversion_id: ctwa.conversionId, new_ctwa_click: ctwa.wasNew } : {}),
+  });
+}
+
+// KROB "capture first": the whole uazapi payload goes to wa_webhook_events before
+// any attribution work. Best-effort — a capture failure must never lose the
+// message for the CRM, so it returns null instead of throwing.
+async function captureEvent(env, payload, msg) {
+  try {
+    await ensureCtwaSchema(env);
+    const ref = msg?.referral || null;
+    const clid = ref && (ref.ctwa_clid || ref.ctwaClid || ref.clickId);
+    const m = payload?.message || {};
+    // an ad message that arrived WITHOUT a click id — what /rastreador "sem clid" lists
+    const adHint = !clid && msg && !msg.fromMe
+      && (!!ref || originFromText(msg.text)?.platform === 'meta') ? 1 : 0;
+    const res = await env.DB.prepare(`
+      INSERT INTO wa_webhook_events (
+        received_at, event_type, instance_name, message_id, chat_id, sender_pn, sender_name,
+        from_me, is_group, message_type, message_content, message_ts,
+        ctwa_clid, entry_point_source, entry_point_app, ad_source_id, ad_source_url, ad_title,
+        is_ctwa, ad_hint, raw_payload
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      Date.now(), payload?.EventType ?? null, payload?.instanceName ?? null,
+      msg?.messageId ?? null, msg?.chatId || null, msg?.phone || null, msg?.name || null,
+      msg?.fromMe ? 1 : 0, m.isGroup ? 1 : 0, m.messageType ?? m.type ?? null,
+      msg?.text ? msg.text.slice(0, 2000) : null, msg?.msgAt ? msg.msgAt * 1000 : null,
+      clid || null, ref?.entry_point ?? null, ref?.entry_point_app ?? null,
+      ref?.source_id ?? null, ref?.source_url ?? null, ref?.title ?? null,
+      clid ? 1 : 0, adHint, JSON.stringify(payload),
+    ).run();
+    return res.meta?.last_row_id ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function linkEvent(env, eventId, conversationId) {
+  if (!eventId || !conversationId) return;
+  try {
+    await env.DB.prepare('UPDATE wa_webhook_events SET wa_conversation_id = ? WHERE id = ?')
+      .bind(conversationId, eventId).run();
+  } catch (_) { /* best-effort */ }
+}
+
+// Upsert the CTWA click and, if it's new, fire LeadSubmitted + enrich the ad name
+// after the response. Never throws.
+async function trackCtwa(context, { msg, clid, conversationId, eventId, eventTime }) {
+  const { env } = context;
+  try {
+    const ref = msg.referral || {};
+    const phone = normalizePhone(msg.phone, env.DEFAULT_COUNTRY_CODE);
+    const adId = ref.source_id || ref.ad_id || null;
+    const up = await upsertConversion(env, {
+      ctwa_clid: clid, first_seen_at: Date.now(), webhook_event_id: eventId,
+      wa_conversation_id: conversationId, sender_pn: phone, sender_name: msg.name || null,
+      ad_id: adId, ad_source_url: ref.source_url || null, ad_title: ref.title || null,
+      ad_body: ref.body || null, entry_point_app: ref.entry_point_app || null,
+      entry_point_source: ref.entry_point || null,
+    });
+    if (up.wasNew && up.conversionId) {
+      context.waitUntil(Promise.allSettled([
+        fireLead(env, { conversionId: up.conversionId, ctwaClid: clid, adId, phone, eventTime }),
+        enrichAdIfStale(env, adId),
+      ]));
+    }
+    return up;
+  } catch (_) {
+    return null;
+  }
 }
 
 // Insert one message into the thread. INSERT OR IGNORE dedups on wa_message_id
@@ -303,25 +405,6 @@ async function resolveAttribution(env, msg) {
   if (byText) return { ...base, ...byText };
 
   return base;
-}
-
-// TEMP DIAGNOSTIC (remove with functions/api/wa-debug.js once the missing-clid
-// cause is known). Stores inbound payloads that arrived WITHOUT a ctwa_clid, so
-// we can see whether uazapi sent the ad context somewhere normalise() doesn't
-// read. Long strings (thumbnails, base64) are shortened to "<N chars: head…>"
-// instead of truncating the whole payload — the 2026-06 capture cut at 8000
-// chars and hid externalAdReply.ctwaClid behind the thumbnail.
-async function captureRaw(env, payload, msg) {
-  if (!env.DB) return;
-  await env.DB.prepare(
-    'CREATE TABLE IF NOT EXISTS wa_raw_debug (id INTEGER PRIMARY KEY AUTOINCREMENT, raw TEXT, has_ref INTEGER, created_at INTEGER)'
-  ).run();
-  const raw = JSON.stringify(payload, (k, v) =>
-    (typeof v === 'string' && v.length > 400) ? `<${v.length} chars: ${v.slice(0, 40)}…>` : v);
-  const hasRef = (/ctwa|externalAdReply|conversionSource|referral|sourceID|entryPoint/i.test(raw)
-    || /posso saber mais informa/i.test(msg.text || '')) ? 1 : 0;
-  await env.DB.prepare('INSERT INTO wa_raw_debug (raw, has_ref, created_at) VALUES (?, ?, ?)')
-    .bind(raw.slice(0, 60000), hasRef, Math.floor(Date.now() / 1000)).run();
 }
 
 function json(body, status = 200) {

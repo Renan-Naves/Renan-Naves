@@ -11,7 +11,8 @@ export async function onRequest(context) {
     && !url.pathname.startsWith('/analytics')
     && !url.pathname.startsWith('/scripts/')
     && !url.pathname.startsWith('/api/')
-    && !url.pathname.startsWith('/dash');
+    && !url.pathname.startsWith('/dash')
+    && !url.pathname.startsWith('/rastreador');
 
   if (!isPageRequest) {
     return next();

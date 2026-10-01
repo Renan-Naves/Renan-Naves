@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rastreador WhatsApp</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   KROB WhatsApp Tracker — Clean Light SaaS
+   Warm paper neutrals · leaf-green accent · soft elevation
+   (fonts degrade gracefully to system stacks when offline)
+   ============================================================ */
+:root{
+  /* warm neutral ramp */
+  --paper:#F6F4EF;
+  --paper-deep:#EFEBE3;
+  --card:#FFFFFF;
+  --card-soft:#FCFBF8;
+  --line:#E7E2D8;
+  --line-strong:#D9D3C6;
+  --ink:#23291F;
+  --ink-2:#535B4D;
+  --ink-3:#8A917F;
+
+  /* brand: leaf green */
+  --leaf:#178A50;
+  --leaf-deep:#0F6B3D;
+  --leaf-tint:#E4F3E8;
+  --leaf-tint-2:#D2EBDA;
+  --leaf-ring:rgba(23,138,80,.22);
+
+  /* status */
+  --ok:#178A50;      --ok-bg:#E4F3E8;
+  --warn:#9A6B0B;    --warn-bg:#FBF0D7;
+  --bad:#C13B2E;     --bad-bg:#FBE7E3;
+  --mute:#6E7566;    --mute-bg:#EEEDE6;
+  --info:#2B6CB0;    --info-bg:#E3EEF9;
+
+  --r-lg:18px; --r-md:12px; --r-sm:8px; --r-pill:999px;
+
+  --shadow-1:0 1px 2px rgba(40,42,30,.05),0 2px 8px rgba(40,42,30,.05);
+  --shadow-2:0 2px 6px rgba(40,42,30,.06),0 10px 30px rgba(40,42,30,.09);
+  --shadow-3:0 6px 16px rgba(40,42,30,.10),0 24px 60px rgba(40,42,30,.16);
+
+  --font-display:"Bricolage Grotesque",Georgia,serif;
+  --font-body:"Instrument Sans","Helvetica Neue",sans-serif;
+  --font-mono:"Spline Sans Mono",ui-monospace,Menlo,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:16px}
+body{
+  font-family:var(--font-body);
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(23,138,80,.06), transparent 60%),
+    radial-gradient(900px 420px at -10% 0%, rgba(154,107,11,.05), transparent 55%),
+    var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--leaf-tint-2);color:var(--leaf-deep)}
+.hidden{display:none!important}
+
+/* ---------------- header ---------------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(246,244,239,.86);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{max-width:1240px;margin:0 auto;padding:14px 28px 0}
+.topbar-row{display:flex;align-items:center;gap:18px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{
+  width:38px;height:38px;border-radius:12px;flex:none;
+  background:linear-gradient(140deg,var(--leaf) 10%,var(--leaf-deep) 90%);
+  display:grid;place-items:center;color:#fff;
+  box-shadow:0 4px 12px rgba(23,138,80,.35), inset 0 1px 0 rgba(255,255,255,.28);
+}
+.brand-mark svg{width:21px;height:21px}
+.brand-name{font-family:var(--font-display);font-weight:700;font-size:1.06rem;letter-spacing:-.01em;white-space:nowrap}
+.brand-name em{font-style:normal;color:var(--leaf-deep)}
+.brand-sub{font-size:.72rem;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+
+.top-meta{margin-left:auto;display:flex;align-items:center;gap:14px}
+.count-badge{
+  display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-pill);padding:6px 13px;font-size:.8rem;font-weight:600;color:var(--ink-2);
+  box-shadow:var(--shadow-1);white-space:nowrap;
+}
+.count-badge b{font-family:var(--font-mono);font-weight:600;color:var(--ink);font-size:.82rem}
+.updated{font-size:.78rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.updated.err{color:var(--bad);font-weight:600}
+.session{
+  display:inline-flex;align-items:center;gap:7px;font-size:.76rem;font-weight:600;color:var(--leaf-deep);
+  background:var(--leaf-tint);border:1px solid var(--leaf-tint-2);border-radius:var(--r-pill);padding:6px 12px;white-space:nowrap;
+}
+.session.off{color:var(--mute);background:var(--mute-bg);border-color:#DEDDD4}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--leaf);position:relative;flex:none}
+.pulse::after{content:"";position:absolute;inset:-4px;border-radius:50%;background:var(--leaf);opacity:.35;animation:pulse 2.2s ease-out infinite}
+.session.off .pulse{background:var(--mute)}
+.session.off .pulse::after{display:none}
+@keyframes pulse{0%{transform:scale(.5);opacity:.5}70%{transform:scale(1.4);opacity:0}100%{opacity:0}}
+
+/* tabs */
+.tabs{display:flex;gap:4px;margin-top:14px}
+.tab{
+  appearance:none;border:0;background:transparent;cursor:pointer;
+  font-family:var(--font-body);font-size:.92rem;font-weight:600;color:var(--ink-3);
+  padding:11px 18px 13px;border-radius:12px 12px 0 0;position:relative;
+  transition:color .15s,background .15s;display:flex;align-items:center;gap:8px;
+}
+.tab:hover{color:var(--ink);background:rgba(255,255,255,.6)}
+.tab .tab-n{
+  font-family:var(--font-mono);font-size:.68rem;font-weight:600;background:var(--mute-bg);
+  color:var(--mute);border-radius:var(--r-pill);padding:2px 8px;line-height:1.4;
+}
+.tab.active{color:var(--ink)}
+.tab.active .tab-n{background:var(--leaf-tint);color:var(--leaf-deep)}
+.tab.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:3px;background:var(--leaf);border-radius:3px 3px 0 0}
+
+/* ---------------- layout ---------------- */
+.page{max-width:1240px;margin:0 auto;padding:26px 28px 80px}
+.view{display:none;animation:fadeUp .28s ease both}
+.view.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.view-head{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.view-title{font-family:var(--font-display);font-size:1.55rem;font-weight:700;letter-spacing:-.02em}
+.view-desc{font-size:.88rem;color:var(--ink-3)}
+
+/* ---------------- controls ---------------- */
+.toolbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow-1);
+}
+.toolbar .spacer{flex:1}
+.field-search{position:relative}
+.field-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--ink-3);pointer-events:none}
+input[type=text],input[type=search],input[type=number],select,textarea{
+  font-family:var(--font-body);font-size:.86rem;color:var(--ink);
+  background:var(--card-soft);border:1px solid var(--line);
+  border-radius:var(--r-sm);padding:8px 12px;outline:none;
+  transition:border-color .15s,box-shadow .15s,background .15s;
+}
+input::placeholder,textarea::placeholder{color:var(--ink-3)}
+input:focus,select:focus,textarea:focus{
+  border-color:var(--leaf);box-shadow:0 0 0 3px var(--leaf-ring);background:#fff;
+}
+.field-search input{padding-left:33px;width:210px}
+select{cursor:pointer;appearance:none;padding-right:30px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238A917F' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+}
+.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;font-weight:500;color:var(--ink-2);user-select:none}
+.check input{position:absolute;opacity:0;pointer-events:none}
+.check .box{
+  width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line-strong);
+  background:#fff;display:grid;place-items:center;transition:all .15s;flex:none;
+}
+.check .box svg{width:10px;height:10px;color:#fff;opacity:0;transform:scale(.5);transition:all .15s}
+.check input:checked + .box{background:var(--leaf);border-color:var(--leaf)}
+.check input:checked + .box svg{opacity:1;transform:scale(1)}
+.check:hover .box{border-color:var(--leaf)}
+
+/* toggle switch */
+.switch{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;pointer-events:none}
+.switch .track{width:36px;height:21px;border-radius:var(--r-pill);background:var(--line-strong);position:relative;transition:background .18s;flex:none}
+.switch .track::after{
+  content:"";position:absolute;top:2.5px;left:3px;width:16px;height:16px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s;
+}
+.switch input:checked + .track{background:var(--leaf)}
+.switch input:checked + .track::after{transform:translateX(14px)}
+.switch .lbl{font-size:.85rem;font-weight:500;color:var(--ink-2)}
+
+/* buttons */
+.btn{
+  appearance:none;cursor:pointer;font-family:var(--font-body);
+  font-size:.85rem;font-weight:600;border-radius:10px;
+  padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  display:inline-flex;align-items:center;gap:7px;
+  transition:all .15s;box-shadow:var(--shadow-1);
+}
+.btn svg{width:14px;height:14px}
+.btn:hover{border-color:var(--line-strong);background:var(--card-soft);transform:translateY(-1px);box-shadow:var(--shadow-2)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.5;cursor:default;transform:none;box-shadow:var(--shadow-1)}
+.btn-primary{
+  background:linear-gradient(180deg,var(--leaf),var(--leaf-deep));
+  border-color:var(--leaf-deep);color:#fff;
+  box-shadow:0 1px 2px rgba(15,107,61,.4),0 4px 12px rgba(23,138,80,.28),inset 0 1px 0 rgba(255,255,255,.22);
+}
+.btn-primary:hover{background:linear-gradient(180deg,#1C9A5B,var(--leaf));border-color:var(--leaf-deep);box-shadow:0 2px 4px rgba(15,107,61,.4),0 8px 20px rgba(23,138,80,.34)}
+.btn-danger-ghost{box-shadow:none;border-color:transparent;background:transparent;color:var(--ink-3);padding:6px 8px}
+.btn-danger-ghost:hover{background:var(--bad-bg);color:var(--bad);border-color:#F2CFC9;transform:none;box-shadow:none}
+
+/* ---------------- summary chips ---------------- */
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.chip{
+  display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-md);padding:10px 16px;box-shadow:var(--shadow-1);min-width:128px;
+  transition:transform .15s,box-shadow .15s;
+}
+.chip:hover{transform:translateY(-2px);box-shadow:var(--shadow-2)}
+.chip .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.chip .num{font-family:var(--font-display);font-size:1.3rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.chip .lab{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-3);letter-spacing:.02em}
+.chip.ok .dot{background:var(--ok)} .chip.ok .num{color:var(--ok)}
+.chip.warn .dot{background:#D99A1B} .chip.warn .num{color:var(--warn)}
+.chip.bad .dot{background:#E05546} .chip.bad .num{color:var(--bad)}
+.chip.mute .dot{background:#A9AF9F} .chip.mute .num{color:var(--mute)}
+
+/* ---------------- tables ---------------- */
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+  box-shadow:var(--shadow-1);overflow:hidden;
+}
+.card .scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+thead th{
+  text-align:left;font-size:.69rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-3);padding:12px 16px;border-bottom:1px solid var(--line);
+  background:var(--card-soft);white-space:nowrap;
+}
+tbody td{
+  padding:13px 16px;border-bottom:1px solid var(--line);
+  vertical-align:middle;font-variant-numeric:tabular-nums;
+}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background .12s}
+tbody tr.clickable{cursor:pointer}
+tbody tr.clickable:hover{background:var(--leaf-tint)}
+.td-num{text-align:right}
+.mono{font-family:var(--font-mono);font-size:.8rem}
+.t-id{color:var(--ink-3);font-family:var(--font-mono);font-size:.78rem}
+.t-time{color:var(--ink-2);font-family:var(--font-mono);font-size:.8rem;white-space:nowrap}
+.t-name{font-weight:600}
+.t-phone{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-2)}
+.t-content{max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.t-content .ad-title{color:var(--ink);font-weight:600}
+.t-dash{color:var(--line-strong)}
+.t-err{color:var(--bad);font-size:.78rem}
+
+/* badges */
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:.7rem;font-weight:700;letter-spacing:.02em;
+  border-radius:var(--r-pill);padding:3px 10px;white-space:nowrap;
+  border:1px solid transparent;
+}
+.badge .bdot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.b-ctwa{background:var(--leaf-tint);color:var(--leaf-deep);border-color:var(--leaf-tint-2)}
+.b-me{background:var(--info-bg);color:var(--info);border-color:#CBDFF2}
+.b-track{background:var(--warn-bg);color:var(--warn);border-color:#F0DFB4}
+.b-sent{background:var(--ok-bg);color:var(--ok);border-color:#C8E6D2}
+.b-pending{background:var(--warn-bg);color:var(--warn);border-color:#F0DFB4}
+.b-failed{background:var(--bad-bg);color:var(--bad);border-color:#F2CFC9}
+.b-sending{background:var(--info-bg);color:var(--info);border-color:#CBDFF2}
+.b-skip{background:var(--mute-bg);color:var(--mute);border-color:#DEDDD4}
+.b-none{background:transparent;color:var(--ink-3);border-color:var(--line)}
+.badge.mono-b{font-family:var(--font-mono);font-weight:600;text-transform:lowercase}
+
+/* type pill in events table */
+.type-pill{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);background:var(--paper-deep);border-radius:6px;padding:3px 8px}
+
+/* ---------------- drawer ---------------- */
+.drawer-scrim{position:fixed;inset:0;background:rgba(35,41,31,.28);z-index:60;opacity:0;pointer-events:none;transition:opacity .25s}
+.drawer-scrim.open{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(780px,94vw);z-index:70;
+  background:var(--paper);border-left:1px solid var(--line);
+  box-shadow:var(--shadow-3);
+  transform:translateX(102%);transition:transform .3s cubic-bezier(.32,.72,.27,1);
+  display:flex;flex-direction:column;
+}
+.drawer.open{transform:translateX(0)}
+.drawer-head{padding:22px 28px 18px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:flex-start;gap:16px}
+.avatar{
+  width:48px;height:48px;border-radius:14px;flex:none;
+  background:linear-gradient(140deg,var(--leaf-tint-2),var(--leaf-tint));
+  border:1px solid var(--leaf-tint-2);display:grid;place-items:center;
+  font-family:var(--font-display);font-weight:700;font-size:1.05rem;color:var(--leaf-deep);
+}
+.drawer-title{font-family:var(--font-display);font-size:1.25rem;font-weight:700;letter-spacing:-.015em}
+.drawer-sub{display:flex;align-items:center;gap:9px;margin-top:4px;flex-wrap:wrap}
+.drawer-sub .t-phone{font-size:.84rem}
+.drawer-close{
+  margin-left:auto;appearance:none;border:1px solid var(--line);background:var(--card);
+  width:34px;height:34px;border-radius:10px;cursor:pointer;color:var(--ink-2);
+  display:grid;place-items:center;transition:all .15s;flex:none;
+}
+.drawer-close:hover{background:var(--bad-bg);color:var(--bad);border-color:#F2CFC9}
+.drawer-close svg{width:15px;height:15px}
+.drawer-body{flex:1;overflow-y:auto;padding:24px 28px 40px;display:grid;gap:18px;align-content:start}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-1);padding:20px 22px}
+.panel-title{
+  font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.panel-title svg{width:14px;height:14px;color:var(--leaf)}
+
+.kv{display:grid;grid-template-columns:170px 1fr;row-gap:11px;column-gap:16px;font-size:.86rem}
+.kv dt{color:var(--ink-3);font-weight:500}
+.kv dd{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:8px;flex-wrap:wrap;word-break:break-word}
+.kv .mono{color:var(--ink-2)}
+.kv a{color:var(--leaf-deep);font-weight:600;text-decoration:none;border-bottom:1px dashed var(--leaf-tint-2)}
+.kv a:hover{border-bottom-style:solid}
+.kv .err{color:var(--bad)}
+.copy-icon{appearance:none;border:0;background:transparent;cursor:pointer;color:var(--ink-3);padding:2px;border-radius:5px;display:inline-grid;place-items:center;transition:all .15s}
+.copy-icon:hover{color:var(--leaf-deep);background:var(--leaf-tint)}
+.copy-icon svg{width:13px;height:13px}
+
+/* action boxes */
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:720px){.action-grid{grid-template-columns:1fr}}
+.action-box{position:relative;overflow:hidden}
+.action-box::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--leaf),var(--leaf-tint-2))}
+.action-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;gap:10px;flex-wrap:wrap}
+.action-name{font-family:var(--font-display);font-size:1rem;font-weight:600}
+.action-row{display:flex;gap:10px;margin-bottom:13px}
+.action-row .f{display:flex;flex-direction:column;gap:5px}
+.action-row label{font-size:.72rem;font-weight:600;color:var(--ink-3)}
+.action-row input{width:128px}
+.action-row input.cur{width:80px;text-transform:uppercase}
+.action-note{font-size:.76rem;color:var(--ink-3);margin-top:10px;line-height:1.45}
+.action-note b{color:var(--ink-2)}
+.action-status{font-size:.78rem;color:var(--ink-3);margin-bottom:13px;line-height:1.5}
+.action-status .err{color:var(--bad)}
+
+/* CAPI log */
+.log-list{display:grid;gap:10px}
+.log-item{border:1px solid var(--line);border-radius:var(--r-md);background:var(--card-soft);overflow:hidden}
+.log-row{display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;user-select:none;transition:background .12s;flex-wrap:wrap}
+.log-row:hover{background:var(--leaf-tint)}
+.log-evt{font-family:var(--font-mono);font-size:.8rem;font-weight:600}
+.log-meta{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-3)}
+.log-chev{margin-left:auto;color:var(--ink-3);transition:transform .2s;flex:none}
+.log-chev svg{width:13px;height:13px;display:block}
+.log-item.open .log-chev{transform:rotate(180deg)}
+.log-json{
+  display:none;border-top:1px dashed var(--line);
+  background:#22271F;color:#C8D6BE;
+  font-family:var(--font-mono);font-size:.74rem;line-height:1.6;
+  padding:14px 16px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;
+}
+.log-json .lbl-json{color:#8FD6A8;font-weight:600;display:block;margin-bottom:2px}
+.log-json .lbl-json + pre{margin-bottom:10px}
+.log-json pre{white-space:pre-wrap;word-break:break-word;font:inherit}
+.log-item.open .log-json{display:block}
+.code-ok{color:var(--ok);background:var(--ok-bg);border-radius:6px;padding:1px 7px;font-weight:600}
+.code-bad{color:var(--bad);background:var(--bad-bg);border-radius:6px;padding:1px 7px;font-weight:600}
+.code-test{color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:1px 7px;font-weight:700;font-size:.68rem}
+.log-empty{font-size:.82rem;color:var(--ink-3)}
+
+/* raw payload */
+.raw-json{
+  background:#22271F;color:#C8D6BE;border-radius:var(--r-md);
+  font-family:var(--font-mono);font-size:.74rem;line-height:1.6;
+  padding:14px 16px;overflow-x:auto;white-space:pre-wrap;word-break:break-word;
+}
+
+/* ---------------- regras ---------------- */
+.rules-grid{display:grid;grid-template-columns:1fr 380px;gap:18px;align-items:start}
+@media (max-width:1020px){.rules-grid{grid-template-columns:1fr}}
+.rule-pattern{font-family:var(--font-mono);font-size:.82rem;font-weight:600;background:var(--paper-deep);border-radius:7px;padding:4px 10px;display:inline-block}
+.evt-tag{font-family:var(--font-mono);font-size:.74rem;font-weight:600;border-radius:var(--r-pill);padding:3px 10px;white-space:nowrap}
+.evt-ql{background:var(--leaf-tint);color:var(--leaf-deep)}
+.evt-purchase{background:#FBF0D7;color:var(--warn)}
+.dir-tag{font-size:.78rem;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.dir-tag svg{width:12px;height:12px;color:var(--ink-3)}
+.fired-count{font-family:var(--font-mono);font-weight:600}
+
+.form-grid{display:grid;gap:13px}
+.form-grid label{font-size:.74rem;font-weight:600;color:var(--ink-2);display:block;margin-bottom:5px}
+.form-grid input[type=text],.form-grid input[type=number],.form-grid select,.form-grid textarea{width:100%}
+.form-grid textarea{resize:vertical;min-height:64px;line-height:1.5}
+.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.purchase-only{
+  border:1px dashed var(--line-strong);border-radius:var(--r-md);padding:13px 14px;
+  background:var(--card-soft);display:grid;gap:12px;transition:opacity .2s;
+}
+.purchase-only.disabled{opacity:.45;pointer-events:none}
+.purchase-only .hint{font-size:.72rem;color:var(--ink-3);margin-top:-4px}
+.form-error{
+  background:var(--bad-bg);border:1px solid #F2CFC9;color:var(--bad);
+  border-radius:var(--r-md);padding:10px 13px;font-size:.82rem;line-height:1.45;
+  animation:fadeUp .2s ease both;
+}
+
+/* empty state */
+.empty-state{padding:36px 30px;display:grid;gap:8px;justify-items:start}
+.empty-state h3{font-family:var(--font-display);font-size:1.1rem;font-weight:700}
+.empty-state p{font-size:.86rem;color:var(--ink-2);line-height:1.55;max-width:560px}
+.empty-state .mono{color:var(--ink-3)}
+
+/* dry-run */
+.dry-result{
+  margin-top:14px;border-radius:var(--r-md);padding:13px 15px;
+  background:var(--ok-bg);border:1px solid #C8E6D2;
+  font-size:.84rem;color:var(--leaf-deep);line-height:1.55;
+  display:flex;gap:10px;align-items:flex-start;
+  animation:fadeUp .25s ease both;
+}
+.dry-result.is-warn{background:var(--warn-bg);border-color:#F0DFB4;color:var(--warn)}
+.dry-result.is-bad{background:var(--bad-bg);border-color:#F2CFC9;color:var(--bad)}
+.dry-result .tick{
+  width:20px;height:20px;border-radius:50%;background:var(--leaf);color:#fff;
+  display:grid;place-items:center;flex:none;margin-top:1px;
+}
+.dry-result.is-warn .tick{background:#D99A1B}
+.dry-result.is-bad .tick{background:#E05546}
+.dry-result .tick svg{width:11px;height:11px}
+.dry-result b{font-weight:700}
+.dry-result .mono{font-size:.78rem}
+.dry-result ul{margin:4px 0 4px 18px}
+
+/* misc */
+.table-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 16px;font-size:.78rem;color:var(--ink-3);
+  background:var(--card-soft);border-top:1px solid var(--line);flex-wrap:wrap;
+}
+.table-foot .mono{font-size:.74rem}
+@media (max-width:880px){
+  .page{padding:20px 16px 60px}
+  .topbar-inner{padding:12px 16px 0}
+  .field-search input{width:150px}
+  .kv{grid-template-columns:130px 1fr}
+  .top-meta .count-badge{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-row">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.7 8.7 0 0 1-3.8-.9L3 20l1.2-5.4a8.1 8.1 0 0 1-1-3.9A8.4 8.4 0 0 1 11.7 2.4 8.4 8.4 0 0 1 21 11.5Z"/>
+            <path d="M8.5 12.5l2.3 2.3 4.7-5.1"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-name">Rastreador <em>WhatsApp</em> · Dr. Renan Naves</div>
+          <div class="brand-sub">Conversões CTWA → Meta · <a href="/dashboard/" id="dashLink" style="color:var(--leaf-deep);text-decoration:none">dashboard →</a></div>
+        </div>
+      </div>
+      <div class="top-meta">
+        <span class="updated" id="statusLine">pronto</span>
+        <span class="count-badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          <span id="countBadge">—</span>
+        </span>
+        <span class="session off" id="sessionPill" title="DASH_KEY ativa nesta sessão">
+          <span class="pulse"></span> <span id="sessionLbl">sem chave</span>
+        </span>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button class="tab active" data-tab="eventos" role="tab" aria-selected="true">
+        Eventos <span class="tab-n" id="tabCountEventos">—</span>
+      </button>
+      <button class="tab" data-tab="conversoes" role="tab" aria-selected="false">
+        Conversões <span class="tab-n" id="tabCountConversoes">—</span>
+      </button>
+      <button class="tab" data-tab="regras" role="tab" aria-selected="false">
+        Regras <span class="tab-n" id="tabCountRegras">—</span>
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- ================= TAB: EVENTOS ================= -->
+  <section class="view active" id="view-eventos" role="tabpanel">
+    <div class="view-head">
+      <h1 class="view-title">Eventos</h1>
+      <p class="view-desc">Cada webhook do uazapi capturado, mensagem por mensagem.</p>
+    </div>
+
+    <div class="toolbar">
+      <select id="evFilter" aria-label="Filtrar eventos">
+        <option value="" selected>Todos os eventos</option>
+        <option value="ctwa">Só CTWA (com ctwa_clid)</option>
+        <option value="hint">Anúncio sem clid</option>
+      </select>
+      <div class="field-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="senderPn" placeholder="Buscar por telefone…" aria-label="Buscar por telefone">
+      </div>
+      <select id="limitEvents" aria-label="Limite de eventos">
+        <option value="50" selected>50 por página</option>
+        <option value="100">100 por página</option>
+        <option value="200">200 por página</option>
+      </select>
+      <div class="spacer"></div>
+      <label class="switch">
+        <input type="checkbox" id="autoRefresh" checked>
+        <span class="track"></span>
+        <span class="lbl">auto-refresh <span class="mono" style="color:var(--ink-3)">5s</span></span>
+      </label>
+      <button class="btn" id="refreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+        Atualizar
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:64px">id</th>
+              <th style="width:96px">recebido</th>
+              <th>nome</th>
+              <th>telefone</th>
+              <th style="width:84px">tipo</th>
+              <th>conteúdo / anúncio</th>
+              <th style="width:120px"></th>
+            </tr>
+          </thead>
+          <tbody id="rowsEvents"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span id="footEvents">—</span>
+        <span class="mono">raw_payload preservado em D1 · clique numa linha para abrir</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TAB: CONVERSÕES ================= -->
+  <section class="view" id="view-conversoes" role="tabpanel">
+    <div class="view-head">
+      <h1 class="view-title">Conversões</h1>
+      <p class="view-desc">Contatos vindos de anúncio e os eventos enviados à Meta CAPI.</p>
+    </div>
+
+    <div class="chips" id="convChips"></div>
+
+    <div class="toolbar">
+      <select id="leadStatus" aria-label="Filtrar por status do lead">
+        <option value="">Todos os status</option>
+        <option value="sent">sent</option>
+        <option value="pending">pending</option>
+        <option value="sending">sending</option>
+        <option value="failed">failed</option>
+        <option value="dead">dead</option>
+        <option value="expired">expired</option>
+        <option value="skipped_no_creds">skipped_no_creds</option>
+      </select>
+      <div class="field-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="campaignId" placeholder="ID da campanha…" aria-label="Buscar por ID de campanha">
+      </div>
+      <div class="field-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" id="adId" placeholder="ID do anúncio…" aria-label="Buscar por ID de anúncio">
+      </div>
+      <div class="spacer"></div>
+      <label class="switch">
+        <input type="checkbox" id="autoRefreshConv" checked>
+        <span class="track"></span>
+        <span class="lbl">auto-refresh <span class="mono" style="color:var(--ink-3)">10s</span></span>
+      </label>
+      <button class="btn" id="flushBtn" title="Reenvia conversões ainda não enviadas + enriquece nomes de anúncio faltantes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        Reenviar pendentes
+      </button>
+      <button class="btn" id="refreshBtnConv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+        Atualizar
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:54px">id</th>
+              <th style="width:104px">primeira msg</th>
+              <th>contato</th>
+              <th>campanha</th>
+              <th>conjunto</th>
+              <th>anúncio</th>
+              <th>lead</th>
+              <th>purchase</th>
+              <th>qualified</th>
+              <th style="width:104px">enviado em</th>
+            </tr>
+          </thead>
+          <tbody id="rowsConv"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span id="footConv">—</span>
+        <span class="mono">ctwa_clid → Meta Conversions API</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TAB: REGRAS ================= -->
+  <section class="view" id="view-regras" role="tabpanel">
+    <div class="view-head">
+      <h1 class="view-title">Regras de disparo automático</h1>
+      <p class="view-desc">Quando uma mensagem contém a frase, o evento dispara sozinho — sem clique manual.</p>
+    </div>
+
+    <div class="rules-grid">
+      <div style="display:grid;gap:18px">
+        <div class="card">
+          <div class="scroll" id="rulesTableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>padrão</th>
+                  <th>evento</th>
+                  <th>direção</th>
+                  <th class="td-num">valor</th>
+                  <th class="td-num">disparos</th>
+                  <th>último disparo</th>
+                  <th style="width:60px">ativo</th>
+                  <th style="width:44px"></th>
+                </tr>
+              </thead>
+              <tbody id="rowsRules"></tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="rulesEmpty">
+            <h3>Nenhuma regra ainda — e tudo bem</h3>
+            <p>
+              O tracker é <b>manual-first</b>: Lead Qualificado e Purchase são disparados
+              à mão, pela gaveta de cada contato na aba Conversões. Uma regra automatiza isso —
+              quando uma mensagem contém a frase escolhida, o evento dispara sozinho contra a
+              conversão CTWA mais recente do contato.
+            </p>
+            <p class="mono">Crie sua primeira regra no formulário ao lado →</p>
+          </div>
+          <div class="table-foot">
+            <span id="footRules">—</span>
+            <span class="mono">match → fire via waitUntil()</span>
+          </div>
+        </div>
+
+        <!-- dry-run -->
+        <div class="panel">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13-2 2 2 2"/><path d="m14 13 2 2-2 2"/><rect x="3" y="4" width="18" height="16" rx="3"/></svg>
+            Testar regras (dry-run · nada é enviado)
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="dryText">texto de teste</label>
+              <textarea id="dryText" placeholder="ex.: oi, quero comprar a mentoria ainda hoje"></textarea>
+            </div>
+            <div class="form-2col">
+              <div>
+                <label for="dryDir">direção</label>
+                <select id="dryDir">
+                  <option value="in" selected>entrada (do lead)</option>
+                  <option value="out">saída (minha resposta)</option>
+                </select>
+              </div>
+              <div>
+                <label for="dryPhone">telefone (opcional)</label>
+                <input type="text" id="dryPhone" placeholder="5511988887777" class="mono">
+              </div>
+            </div>
+            <div>
+              <button class="btn btn-primary" id="dryRunBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                Testar
+              </button>
+            </div>
+          </div>
+          <div id="dryResult"></div>
+        </div>
+      </div>
+
+      <!-- create rule -->
+      <div class="panel" style="position:sticky;top:120px">
+        <div class="panel-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          Nova regra
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="ruleEvt">tipo de evento</label>
+            <select id="ruleEvt">
+              <option value="qualified_lead" selected>qualified_lead</option>
+              <option value="purchase">purchase</option>
+            </select>
+          </div>
+          <div>
+            <label for="rulePhrase">frase a detectar</label>
+            <input type="text" id="rulePhrase" placeholder="ex.: quero comprar">
+          </div>
+          <div>
+            <label for="ruleDir">direção da mensagem</label>
+            <select id="ruleDir">
+              <option value="in" selected>entrada (do lead)</option>
+              <option value="out">saída (minha resposta)</option>
+              <option value="any">qualquer</option>
+            </select>
+          </div>
+          <div class="purchase-only disabled" id="purchaseFields">
+            <div class="hint">apenas para evento <b>purchase</b></div>
+            <div class="form-2col">
+              <div>
+                <label for="ruleValue">valor</label>
+                <input type="number" id="ruleValue" min="0" step="0.01" placeholder="497.00" class="mono">
+              </div>
+              <div>
+                <label for="ruleCurrency">moeda</label>
+                <select id="ruleCurrency">
+                  <option value="BRL" selected>BRL</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="ruleCase">
+            <span class="box"><svg viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5.4 4.3 8.6 11 1.4"/></svg></span>
+            diferenciar maiúsculas (case-sensitive)
+          </label>
+          <div>
+            <label for="ruleNotes">notas (opcional)</label>
+            <textarea id="ruleNotes" placeholder="ex.: usada na campanha de Junho"></textarea>
+          </div>
+          <div class="form-error hidden" id="ruleFormError"></div>
+          <button class="btn btn-primary" id="ruleCreateBtn" style="justify-content:center">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Criar regra
+          </button>
+          <p class="action-note">A regra roda dentro do webhook, depois do <b>200</b> — o uazapi nunca espera pela Meta.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= DRAWER ================= -->
+<div class="drawer-scrim" id="drawerScrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Detalhes">
+  <div class="drawer-head">
+    <div class="avatar" id="drawerAvatar">—</div>
+    <div>
+      <h2 class="drawer-title" id="drawerTitle">—</h2>
+      <div class="drawer-sub" id="drawerSub"></div>
+    </div>
+    <button class="drawer-close" id="drawerClose" aria-label="Fechar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer-body">
+    <div class="panel" id="drawerMetaPanel">
+      <div class="panel-title" id="drawerMetaTitle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+        <span id="drawerMetaTitleText">Detalhes</span>
+      </div>
+      <dl class="kv" id="drawerMeta"></dl>
+    </div>
+    <div class="action-grid hidden" id="drawerActions">
+      <div class="panel action-box" id="drawerPurchase"></div>
+      <div class="panel action-box" id="drawerQualified"></div>
+    </div>
+    <div class="panel hidden" id="drawerCapiPanel">
+      <div class="panel-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10"/><path d="M2 17h20v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2Z"/></svg>
+        Log CAPI
+      </div>
+      <div class="log-list" id="drawerCapi"></div>
+    </div>
+    <div class="panel hidden" id="drawerRawPanel">
+      <div class="panel-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 13-2 2 2 2"/><path d="m14 13 2 2-2 2"/><rect x="3" y="4" width="18" height="16" rx="3"/></svg>
+        raw_payload
+      </div>
+      <pre class="raw-json" id="drawerRaw"></pre>
+    </div>
+  </div>
+</aside>
+
+<script>
+  // ============================================================
+  // chave — a mesma DASH_KEY do /dashboard. Vem de ?key= na URL (como o
+  // dashboard) ou de um prompt; fica em sessionStorage e vai no header
+  // x-dash-key. 401 limpa a chave e pergunta de novo no próximo acesso.
+  // ============================================================
+  const TOKEN_KEY = 'dashKey'; // mesma chave de sessão do /dashboard — abrir um a partir do outro não pede de novo
+  // Remove espaços + caracteres de controle — um newline colado junto
+  // da chave faz o fetch() lançar "Invalid value" no header.
+  function sanitizeToken(t) {
+    return (t || '').replace(/\s/g, '');
+  }
+  function storeGet() { try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; } }
+  function storeSet(v) { try { sessionStorage.setItem(TOKEN_KEY, v); } catch {} }
+  function storeDel() { try { sessionStorage.removeItem(TOKEN_KEY); } catch {} }
+  (function keyFromUrl() {
+    const u = new URL(location.href);
+    const k = sanitizeToken(u.searchParams.get('key'));
+    if (k) {
+      storeSet(k);
+      u.searchParams.delete('key'); // não deixa a chave no histórico/URL
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+    }
+  })();
+  function getToken() {
+    let t = sanitizeToken(storeGet());
+    if (!t) {
+      t = sanitizeToken(prompt('Chave do dashboard (DASH_KEY)'));
+      if (t) storeSet(t);
+    }
+    setSession(!!t);
+    return t;
+  }
+  function clearToken() {
+    storeDel();
+    setSession(false);
+  }
+
+  function setSession(on) {
+    const pill = $('sessionPill');
+    pill.classList.toggle('off', !on);
+    $('sessionLbl').textContent = on ? 'chave ativa' : 'sem chave';
+  }
+
+  // GET que lança em erro — usado pelos loaders (paridade com o api() original).
+  async function api(path) {
+    const token = getToken();
+    const r = await fetch(path, { headers: { 'x-dash-key': token } });
+    if (r.status === 401) { clearToken(); throw new Error('não autorizado (token limpo — recarregue)'); }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  // POST/PUT/DELETE que devolve {status, data} — os handlers de disparo e de
+  // regras precisam ler códigos como 409 already_sent sem cair no catch.
+  async function apiSend(path, method, body) {
+    const token = getToken();
+    const headers = { 'x-dash-key': token };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    const r = await fetch(path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (r.status === 401) { clearToken(); throw new Error('não autorizado (token limpo — recarregue)'); }
+    const data = await r.json().catch(() => ({}));
+    return { status: r.status, ok: r.ok, data };
+  }
+
+  // ============================================================
+  // helpers
+  // ============================================================
+  function $(id) { return document.getElementById(id); }
+  // hoje → HH:MM:SS; outros dias → DD/MM HH:MM (a lista cobre semanas)
+  function fmtTime(ms) {
+    if (!ms) return '';
+    const d = new Date(ms);
+    const pad = (n) => String(n).padStart(2, '0');
+    if (d.toDateString() === new Date().toDateString()) {
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function fmtDate(ms) { if (!ms) return ''; return new Date(ms).toLocaleString('pt-BR'); }
+  // Escapa TODO campo vindo do payload antes de ir pro innerHTML.
+  function escape(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  }
+  function safePretty(s) {
+    if (!s) return '';
+    try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
+  }
+  function initials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '#';
+    return (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
+  }
+  function setStatus(text, err) {
+    const el = $('statusLine');
+    el.textContent = text;
+    el.classList.toggle('err', !!err);
+  }
+  function setCount(text) { $('countBadge').innerHTML = text; }
+
+  // status técnico (sent/pending/…) → classe de badge
+  function statusBadge(s) {
+    if (!s) return '<span class="badge b-none mono-b">—</span>';
+    const cls =
+      s === 'sent' ? 'b-sent' :
+      s === 'pending' ? 'b-pending' :
+      s === 'sending' ? 'b-sending' :
+      s === 'skipped_no_creds' ? 'b-skip' : 'b-failed'; // failed | dead | expired
+    return `<span class="badge ${cls} mono-b">${escape(s)}</span>`;
+  }
+
+  const DIR_LABEL = { in: 'entrada', out: 'saída', any: 'qualquer' };
+  const DIR_ICON = {
+    in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>',
+    out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>',
+    any: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></svg>',
+  };
+  function dirTag(d) {
+    const dir = DIR_LABEL[d] ? d : 'any';
+    return `<span class="dir-tag">${DIR_ICON[dir]}${DIR_LABEL[dir]}</span>`;
+  }
+
+  // ============================================================
+  // tabs
+  // ============================================================
+  let activeTab = 'eventos';
+  $('tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-tab]');
+    if (!btn) return;
+    activeTab = btn.dataset.tab;
+    for (const b of document.querySelectorAll('#tabs .tab')) {
+      const on = b.dataset.tab === activeTab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    for (const v of document.querySelectorAll('.view')) v.classList.remove('active');
+    $(`view-${activeTab}`).classList.add('active');
+    load();
+  });
+
+  async function load() {
+    if (activeTab === 'eventos') return loadEvents();
+    if (activeTab === 'conversoes') return loadConversions();
+    if (activeTab === 'regras') return loadRules();
+  }
+
+  // ============================================================
+  // eventos
+  // ============================================================
+  async function loadEvents() {
+    const qs = new URLSearchParams({ limit: $('limitEvents').value || '50' });
+    // ctwa = chegou com ctwa_clid · hint = parece mensagem de anúncio mas veio SEM clid
+    if ($('evFilter').value) qs.set('filter', $('evFilter').value);
+    const pn = $('senderPn').value.trim();
+    if (pn) qs.set('sender_pn', pn);
+
+    setStatus('carregando…');
+    try {
+      const { events, count } = await api(`/api/ctwa/events?${qs}`);
+      const filtered = events;
+      renderEvents(filtered);
+      $('tabCountEventos').textContent = count;
+      if (activeTab === 'eventos') setCount(`<b>${filtered.length}</b> de ${count} eventos`);
+      $('footEvents').textContent = `Mostrando ${filtered.length} de ${count} eventos`;
+      setStatus(`atualizado ${fmtTime(Date.now())}`);
+    } catch (e) { setStatus(e.message, true); }
+  }
+
+  function renderEvents(events) {
+    if (!events.length) {
+      $('rowsEvents').innerHTML =
+        '<tr><td colspan="7" style="color:var(--ink-3);padding:26px 16px">Nenhum evento neste filtro ainda — eles aparecem conforme o uazapi entrega mensagens no webhook.</td></tr>';
+      return;
+    }
+    $('rowsEvents').innerHTML = events.map((e) => {
+      const badges = [];
+      if (e.is_ctwa) badges.push(`<span class="badge b-ctwa" title="CTWA: ${escape(e.entry_point_app || '')}/${escape(e.entry_point_source || '')}"><span class="bdot"></span>CTWA</span>`);
+      if (e.ad_hint && !e.is_ctwa) badges.push('<span class="badge b-track" title="Texto/contexto de anúncio, mas sem ctwa_clid"><span class="bdot"></span>anúncio sem clid</span>');
+      if (e.from_me) badges.push('<span class="badge b-me"><span class="bdot"></span>eu</span>');
+      const adLine = e.ad_title
+        ? `<span class="ad-title">${escape(e.ad_title)}</span> · ${escape(e.message_content || '')}`
+        : escape(e.message_content || '');
+      return `
+        <tr class="clickable" data-event-id="${e.id}">
+          <td class="t-id">#${e.id}</td>
+          <td class="t-time" title="${escape(fmtDate(e.received_at))}">${escape(fmtTime(e.received_at))}</td>
+          <td class="t-name">${escape(e.sender_name || '')}</td>
+          <td class="t-phone">${escape(e.sender_pn || '')}</td>
+          <td><span class="type-pill">${escape(e.message_type || '')}</span></td>
+          <td class="t-content" title="${escape(e.message_content || '')}">${adLine}</td>
+          <td>${badges.join(' ')}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  $('rowsEvents').addEventListener('click', (ev) => {
+    const tr = ev.target.closest('tr[data-event-id]');
+    if (!tr) return;
+    openEventDrawer(tr.dataset.eventId);
+  });
+
+  async function openEventDrawer(id) {
+    showDrawer(`Evento #${id}`, 'Detalhes do evento');
+    try {
+      const { event } = await api(`/api/ctwa/events/${id}`);
+      $('drawerAvatar').textContent = initials(event.sender_name);
+      $('drawerTitle').textContent = event.sender_name || `Evento #${id}`;
+      const subBadges = [];
+      if (event.is_ctwa) subBadges.push('<span class="badge b-ctwa"><span class="bdot"></span>CTWA</span>');
+      if (event.from_me) subBadges.push('<span class="badge b-me"><span class="bdot"></span>eu</span>');
+      $('drawerSub').innerHTML =
+        `<span class="t-phone">${escape(event.sender_pn || '')}</span>` +
+        `<span class="type-pill">${escape(event.message_type || '')}</span>` +
+        subBadges.join('');
+      $('drawerMeta').innerHTML = `
+        <dt>recebido</dt><dd class="mono">${escape(fmtDate(event.received_at))}</dd>
+        <dt>tipo</dt><dd><span class="type-pill">${escape(event.message_type || '')}</span></dd>
+        <dt>remetente</dt><dd>${escape(event.sender_name || '')} <span class="t-phone">${escape(event.sender_pn || '')}</span></dd>
+        ${event.is_ctwa ? `<dt>ctwa_clid</dt><dd><span class="mono">${escape((event.ctwa_clid || '').slice(0, 24))}…</span>${copyBtn(event.ctwa_clid)}</dd>` : ''}
+        ${event.ad_source_id ? `<dt>ad_id</dt><dd class="mono">${escape(event.ad_source_id)}</dd>` : ''}
+        ${event.ad_title ? `<dt>anúncio</dt><dd>${escape(event.ad_title)}</dd>` : ''}
+      `;
+      // raw_payload é a fonte de verdade — pretty-print defensivo.
+      $('drawerRawPanel').classList.remove('hidden');
+      let pretty;
+      try { pretty = JSON.stringify(JSON.parse(event.raw_payload), null, 2); }
+      catch { pretty = event.raw_payload; }
+      $('drawerRaw').textContent = pretty ?? '';
+    } catch (e) {
+      $('drawerMeta').innerHTML = `<dt>erro</dt><dd class="err">${escape(e.message)}</dd>`;
+    }
+  }
+
+  function copyBtn(value) {
+    if (!value) return '';
+    return `<button class="copy-icon" title="Copiar valor completo" data-copy="${escape(value)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+    </button>`;
+  }
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-copy]');
+    if (!btn) return;
+    navigator.clipboard?.writeText(btn.dataset.copy).then(() => {
+      const old = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;color:var(--leaf)"><path d="M20 6 9 17l-5-5"/></svg>';
+      setTimeout(() => { btn.innerHTML = old; }, 1200);
+    }).catch(() => {});
+  });
+
+  // ============================================================
+  // conversões
+  // ============================================================
+  async function loadConversions() {
+    const qs = new URLSearchParams({ limit: '100' });
+    if ($('leadStatus').value) qs.set('lead_status', $('leadStatus').value);
+    if ($('campaignId').value.trim()) qs.set('campaign_id', $('campaignId').value.trim());
+    if ($('adId').value.trim()) qs.set('ad_id', $('adId').value.trim());
+
+    setStatus('carregando…');
+    try {
+      const { conversions, count, summary } = await api(`/api/ctwa/conversions?${qs}`);
+      renderConversions(conversions);
+      renderSummary(summary || {});
+      $('tabCountConversoes').textContent = count;
+      if (activeTab === 'conversoes') setCount(`<b>${conversions.length}</b> de ${count} conversões`);
+      $('footConv').textContent = `${count} conversões · ordenadas pela primeira mensagem`;
+      setStatus(`atualizado ${fmtTime(Date.now())}`);
+    } catch (e) { setStatus(e.message, true); }
+  }
+
+  function renderSummary(summary) {
+    const order = ['sent', 'pending', 'sending', 'failed', 'dead', 'expired', 'skipped_no_creds'];
+    const cls = {
+      sent: 'ok', pending: 'warn', sending: 'warn',
+      failed: 'bad', dead: 'bad', expired: 'bad', skipped_no_creds: 'mute',
+    };
+    $('convChips').innerHTML = order.filter((s) => summary[s]).map((s) => `
+      <div class="chip ${cls[s]}"><span class="dot"></span>
+        <div><div class="num">${summary[s]}</div><div class="lab">${s}</div></div>
+      </div>
+    `).join('');
+  }
+
+  function renderConversions(rows) {
+    if (!rows.length) {
+      $('rowsConv').innerHTML =
+        '<tr><td colspan="10" style="color:var(--ink-3);padding:26px 16px">Nenhuma conversão CTWA ainda — elas aparecem quando um lead chega clicando num anúncio.</td></tr>';
+      return;
+    }
+    $('rowsConv').innerHTML = rows.map((c) => `
+      <tr class="clickable" data-conv-id="${c.id}">
+        <td class="t-id">#${c.id}</td>
+        <td class="t-time" title="${escape(fmtDate(c.first_seen_at))}">${escape(fmtTime(c.first_seen_at))}</td>
+        <td><span class="t-name">${escape(c.sender_name || '')}</span><br><span class="t-phone">${escape(c.sender_pn || '')}</span></td>
+        <td title="${escape(c.campaign_id || '')}">${escape(c.campaign_name || c.campaign_id || '') || '<span class="t-dash">—</span>'}</td>
+        <td>${escape(c.adset_name || '') || '<span class="t-dash">—</span>'}</td>
+        <td title="${escape(c.ad_title || '')}">${escape(c.ad_name || c.ad_title || c.ad_id || '') || '<span class="t-dash">—</span>'}</td>
+        <td>${statusBadge(c.lead_status)}</td>
+        <td>${purchaseCell(c)}</td>
+        <td>${statusBadge(c.qualified_lead_status)}</td>
+        <td class="t-time">${c.lead_sent_at ? escape(fmtTime(c.lead_sent_at)) : '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function purchaseCell(c) {
+    if (!c.purchase_status) return '<span class="badge b-none mono-b">—</span>';
+    const val = (c.purchase_value != null)
+      ? ` <span class="mono" style="font-size:.74rem">${escape(c.purchase_currency || '')} ${escape(String(c.purchase_value))}</span>`
+      : '';
+    return statusBadge(c.purchase_status) + val;
+  }
+
+  $('rowsConv').addEventListener('click', (ev) => {
+    const tr = ev.target.closest('tr[data-conv-id]');
+    if (!tr) return;
+    openConvDrawer(tr.dataset.convId);
+  });
+
+  async function openConvDrawer(id) {
+    showDrawer(`Conversão #${id}`, 'Atribuição do anúncio');
+    try {
+      const { conversion: c, capi_log } = await api(`/api/ctwa/conversions/${id}`);
+      $('drawerAvatar').textContent = initials(c.sender_name);
+      $('drawerTitle').textContent = c.sender_name || `Conversão #${id}`;
+      $('drawerSub').innerHTML =
+        `<span class="t-phone">${escape(c.sender_pn || '')}</span>` +
+        '<span class="badge b-ctwa"><span class="bdot"></span>CTWA</span>' +
+        statusBadge(c.lead_status);
+      $('drawerMeta').innerHTML = `
+        <dt>primeira msg</dt><dd class="mono">${escape(fmtDate(c.first_seen_at))}</dd>
+        <dt>ctwa_clid</dt><dd><span class="mono">${escape((c.ctwa_clid || '').slice(0, 28))}…</span>${copyBtn(c.ctwa_clid)}</dd>
+        <dt>contato</dt><dd>${escape(c.sender_name || '')} <span class="t-phone">${escape(c.sender_pn || '')}</span></dd>
+        <dt>status do lead</dt><dd>${statusBadge(c.lead_status)} <span style="color:var(--ink-3);font-size:.8rem">${c.lead_attempts ?? 0} tentativa(s)</span></dd>
+        ${c.campaign_name ? `<dt>campanha</dt><dd>${escape(c.campaign_name)}</dd>` : ''}
+        ${c.adset_name ? `<dt>conjunto</dt><dd>${escape(c.adset_name)}</dd>` : ''}
+        ${c.ad_name ? `<dt>anúncio</dt><dd>${escape(c.ad_name)}</dd>` : ''}
+        ${c.ad_source_url ? `<dt>link do anúncio</dt><dd><a href="${escape(c.ad_source_url)}" target="_blank" rel="noopener">abrir anúncio ↗</a></dd>` : ''}
+        ${c.lead_last_error ? `<dt>último erro</dt><dd class="err mono">${escape((c.lead_last_error || '').slice(0, 140))}</dd>` : ''}
+      `;
+      $('drawerActions').classList.remove('hidden');
+      renderPurchaseBox(c);
+      renderQualifiedLeadBox(c);
+      renderCapiLog(capi_log);
+    } catch (e) {
+      $('drawerMeta').innerHTML = `<dt>erro</dt><dd class="err">${escape(e.message)}</dd>`;
+    }
+  }
+
+  function renderCapiLog(capiLog) {
+    $('drawerCapiPanel').classList.remove('hidden');
+    $('drawerCapi').innerHTML = (capiLog || []).map((e) => {
+      const code = e.response_status ?? '—';
+      const codeCls = (e.response_status >= 200 && e.response_status < 300) ? 'code-ok' : 'code-bad';
+      return `
+        <div class="log-item">
+          <div class="log-row" data-log-toggle>
+            <span class="log-evt">${escape(e.event_name)}</span>
+            <span class="${codeCls} mono">${escape(String(code))}</span>
+            <span class="log-meta">${e.duration_ms ?? 0}ms</span>
+            ${e.was_test ? '<span class="code-test mono">TEST</span>' : ''}
+            <span class="log-meta">${escape(fmtDate(e.attempted_at))}</span>
+            <span class="log-chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          </div>
+          <div class="log-json"><span class="lbl-json">request</span><pre>${escape(safePretty(e.request_body))}</pre><span class="lbl-json">response</span><pre>${escape(safePretty(e.response_body))}</pre></div>
+        </div>
+      `;
+    }).join('') || '<div class="log-empty">nenhuma tentativa CAPI ainda</div>';
+  }
+  $('drawerCapi').addEventListener('click', (ev) => {
+    const row = ev.target.closest('[data-log-toggle]');
+    if (!row) return;
+    row.parentElement.classList.toggle('open');
+  });
+
+  // ============================================================
+  // disparo manual: Purchase
+  // ============================================================
+  function renderPurchaseBox(c) {
+    const defCur = c.purchase_currency || 'BRL';
+    const sent = c.purchase_status === 'sent';
+    const statusLine = c.purchase_status
+      ? statusBadge(c.purchase_status) +
+        (c.purchase_value != null ? ` <b class="mono">${escape(defCur)} ${escape(String(c.purchase_value))}</b>` : '') +
+        (c.purchase_sent_at ? `<div class="action-status" style="margin:8px 0 0">enviado em ${escape(fmtDate(c.purchase_sent_at))}</div>` : '') +
+        (c.purchase_last_error ? `<div class="action-status err" style="margin:6px 0 0">${escape((c.purchase_last_error || '').slice(0, 100))}</div>` : '')
+      : '<span class="badge b-none mono-b">—</span>';
+    $('drawerPurchase').innerHTML = `
+      <div class="action-head">
+        <span class="action-name">Purchase</span>
+        <span>${statusLine}</span>
+      </div>
+      <div class="action-row">
+        <div class="f">
+          <label for="purValue">valor</label>
+          <input type="number" min="0" step="0.01" id="purValue" placeholder="0.00" class="mono"
+            value="${c.purchase_value != null ? escape(String(c.purchase_value)) : ''}">
+        </div>
+        <div class="f">
+          <label for="purCurrency">moeda</label>
+          <input type="text" class="cur mono" id="purCurrency" value="${escape(defCur)}" maxlength="3">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="purBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg>
+        ${sent ? 'Disparar Purchase de novo' : 'Disparar Purchase'}
+      </button>
+      <p class="action-note">Envia um <b>Purchase</b> à Meta CAPI com o <b>ctwa_clid</b> desta conversa. Pede confirmação antes.</p>
+    `;
+    $('purBtn').addEventListener('click', () => firePurchaseUI(c));
+  }
+
+  async function firePurchaseUI(c) {
+    const value = Number($('purValue').value);
+    const currency = ($('purCurrency').value || '').trim().toUpperCase();
+    const btn = $('purBtn');
+    if (!Number.isFinite(value) || value <= 0) { setStatus('informe um valor de purchase > 0', true); return; }
+    // Confirmação antes de TODO disparo — Purchase é um evento real de conversão.
+    if (!confirm(`Enviar um Purchase de ${currency || 'BRL'} ${value} à Meta CAPI para este contato?`)) return;
+    btn.disabled = true;
+    setStatus('disparando purchase…');
+    try {
+      const body = { conversion_id: Number(c.id), value, currency: currency || undefined };
+      let { status, data } = await apiSend('/api/ctwa/fire-purchase', 'POST', body);
+      // 409 already_sent → oferece re-disparo forçado com segunda confirmação.
+      if (status === 409 && data.error === 'already_sent') {
+        if (confirm('Um Purchase já foi enviado para este contato. Disparar OUTRO evento Purchase à Meta (pode duplicar)?')) {
+          ({ status, data } = await apiSend('/api/ctwa/fire-purchase', 'POST', { ...body, force: true }));
+        } else { btn.disabled = false; setStatus('disparo cancelado'); return; }
+      }
+      if (data.ok) setStatus(`purchase enviado: ${data.currency} ${data.value} (tentativas=${data.attempts})`);
+      else setStatus(`purchase ${data.purchase_status || data.error || ('HTTP ' + status)}`, true);
+      await openConvDrawer(c.id);            // re-renderiza a gaveta (status + log CAPI)
+      if (activeTab === 'conversoes') loadConversions();
+    } catch (e) {
+      setStatus(e.message, true);
+      btn.disabled = false;
+    }
+  }
+
+  // ============================================================
+  // disparo manual: Lead Qualificado
+  // ============================================================
+  function renderQualifiedLeadBox(c) {
+    const sent = c.qualified_lead_status === 'sent';
+    const statusLine = c.qualified_lead_status
+      ? statusBadge(c.qualified_lead_status) +
+        (c.qualified_lead_sent_at ? `<div class="action-status" style="margin:8px 0 0">enviado em ${escape(fmtDate(c.qualified_lead_sent_at))}</div>` : '') +
+        (c.qualified_lead_last_error ? `<div class="action-status err" style="margin:6px 0 0">${escape((c.qualified_lead_last_error || '').slice(0, 100))}</div>` : '')
+      : '<span class="badge b-none mono-b">—</span>';
+    $('drawerQualified').innerHTML = `
+      <div class="action-head">
+        <span class="action-name">Lead Qualificado</span>
+        <span>${statusLine}</span>
+      </div>
+      ${sent ? '<p class="action-status">Já enviado — disparar de novo cria um evento duplicado na Meta.</p>'
+             : '<p class="action-status">Ainda não qualificado.</p>'}
+      <button class="btn ${sent ? '' : 'btn-primary'}" id="qualBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        ${sent ? 'Disparar QualifiedLead de novo' : 'Marcar Lead Qualificado'}
+      </button>
+      <p class="action-note">Evento <b>QualifiedLead</b>, sem valor — sinal de qualidade para o algoritmo otimizar a campanha.</p>
+    `;
+    $('qualBtn').addEventListener('click', () => fireQualifiedLeadUI(c));
+  }
+
+  async function fireQualifiedLeadUI(c) {
+    const btn = $('qualBtn');
+    // Confirmação antes de TODO envio — um QualifiedLead é um evento real de
+    // conversão; um clique acidental não pode disparar em silêncio.
+    if (!confirm('Enviar um evento QualifiedLead à Meta CAPI para este contato?')) return;
+    btn.disabled = true;
+    setStatus('disparando lead qualificado…');
+    try {
+      const body = { conversion_id: Number(c.id) };
+      let { status, data } = await apiSend('/api/ctwa/fire-qualified-lead', 'POST', body);
+      // 409 already_sent → oferece re-disparo forçado com segunda confirmação.
+      if (status === 409 && data.error === 'already_sent') {
+        if (confirm('Um QualifiedLead já foi enviado para este contato. Disparar OUTRO evento à Meta (pode duplicar)?')) {
+          ({ status, data } = await apiSend('/api/ctwa/fire-qualified-lead', 'POST', { ...body, force: true }));
+        } else { btn.disabled = false; setStatus('disparo cancelado'); return; }
+      }
+      if (data.ok) setStatus(`qualified lead enviado (tentativas=${data.attempts})`);
+      else setStatus(`qualified lead ${data.qualified_lead_status || data.error || ('HTTP ' + status)}`, true);
+      await openConvDrawer(c.id);            // re-renderiza a gaveta (status + log CAPI)
+      if (activeTab === 'conversoes') loadConversions();
+    } catch (e) {
+      setStatus(e.message, true);
+      btn.disabled = false;
+    }
+  }
+
+  // ============================================================
+  // regras (auto-fire)
+  // ============================================================
+  const RULE_ERRORS = {
+    invalid_json: 'Requisição inválida (JSON malformado).',
+    invalid_event_type: 'Tipo de evento inválido — use qualified_lead ou purchase.',
+    unsupported_match_type: 'Tipo de correspondência não suportado (apenas "contém a frase").',
+    pattern_too_short: 'A frase precisa ter pelo menos 2 caracteres.',
+    invalid_direction: 'Direção inválida — use entrada, saída ou qualquer.',
+    purchase_requires_value: 'Regras de purchase exigem um valor maior que zero.',
+    invalid_currency: 'Moeda inválida — use um código de 3 letras (ex.: BRL).',
+    invalid_id: 'ID de regra inválido.',
+    rule_not_found: 'Regra não encontrada — talvez já tenha sido excluída.',
+    text_required: 'Digite um texto de teste.',
+  };
+  function ruleErrorMsg(code) {
+    return RULE_ERRORS[code] || `Erro: ${code || 'desconhecido'}`;
+  }
+
+  async function loadRules() {
+    setStatus('carregando…');
+    try {
+      const { rules, count } = await api('/api/ctwa/rules');
+      renderRules(rules || []);
+      $('tabCountRegras').textContent = count ?? (rules || []).length;
+      if (activeTab === 'regras') setCount(`<b>${count ?? 0}</b> regras`);
+      setStatus(`atualizado ${fmtTime(Date.now())}`);
+    } catch (e) { setStatus(e.message, true); }
+  }
+
+  function renderRules(rules) {
+    const empty = !rules.length;
+    $('rulesEmpty').classList.toggle('hidden', !empty);
+    $('rulesTableWrap').classList.toggle('hidden', empty);
+    $('footRules').textContent = empty
+      ? 'Nenhuma regra cadastrada'
+      : `${rules.length} regra(s) · ${rules.filter((r) => r.enabled === 1).length} ativa(s) · a frase é comparada como substring da mensagem`;
+    if (empty) { $('rowsRules').innerHTML = ''; return; }
+
+    $('rowsRules').innerHTML = rules.map((r) => `
+      <tr data-rule-id="${r.id}">
+        <td><span class="rule-pattern" title="${escape(r.notes || '')}">“${escape(r.pattern)}”</span></td>
+        <td><span class="evt-tag ${r.event_type === 'purchase' ? 'evt-purchase' : 'evt-ql'}">${escape(r.event_type)}</span></td>
+        <td>${dirTag(r.direction)}</td>
+        <td class="td-num">${r.event_type === 'purchase' && r.value != null
+          ? `<span class="mono" style="font-weight:600">${escape(r.currency || '')} ${escape(String(r.value))}</span>`
+          : '<span class="t-dash">—</span>'}</td>
+        <td class="td-num"><span class="fired-count">${r.fired_count ?? 0}</span></td>
+        <td class="t-time">${r.last_fired_at ? escape(fmtDate(r.last_fired_at)) : '<span class="t-dash">—</span>'}</td>
+        <td>
+          <label class="switch" title="${r.enabled === 1 ? 'Desativar' : 'Ativar'} regra">
+            <input type="checkbox" data-toggle-rule="${r.id}" ${r.enabled === 1 ? 'checked' : ''}>
+            <span class="track"></span>
+          </label>
+        </td>
+        <td>
+          <button class="btn btn-danger-ghost" data-delete-rule="${r.id}" title="Excluir regra">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  $('rowsRules').addEventListener('change', async (ev) => {
+    const input = ev.target.closest('input[data-toggle-rule]');
+    if (!input) return;
+    const id = input.dataset.toggleRule;
+    const enabled = input.checked;
+    try {
+      const { ok, data } = await apiSend(`/api/ctwa/rules/${id}`, 'PUT', { enabled });
+      if (!ok) {
+        input.checked = !enabled; // reverte o switch
+        setStatus(ruleErrorMsg(data.error), true);
+        return;
+      }
+      setStatus(`regra #${id} ${enabled ? 'ativada' : 'desativada'}`);
+      loadRules();
+    } catch (e) {
+      input.checked = !enabled;
+      setStatus(e.message, true);
+    }
+  });
+
+  $('rowsRules').addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-delete-rule]');
+    if (!btn) return;
+    const id = btn.dataset.deleteRule;
+    if (!confirm(`Excluir a regra #${id}? Mensagens futuras deixam de disparar este evento automaticamente.`)) return;
+    btn.disabled = true;
+    try {
+      const { ok, data } = await apiSend(`/api/ctwa/rules/${id}`, 'DELETE');
+      if (!ok) { setStatus(ruleErrorMsg(data.error), true); btn.disabled = false; return; }
+      setStatus(`regra #${id} excluída`);
+      loadRules();
+    } catch (e) {
+      setStatus(e.message, true);
+      btn.disabled = false;
+    }
+  });
+
+  // ----- nova regra -----
+  $('ruleEvt').addEventListener('change', () => {
+    $('purchaseFields').classList.toggle('disabled', $('ruleEvt').value !== 'purchase');
+  });
+
+  function showRuleFormError(msg) {
+    const el = $('ruleFormError');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  }
+  function hideRuleFormError() { $('ruleFormError').classList.add('hidden'); }
+
+  $('ruleCreateBtn').addEventListener('click', async () => {
+    hideRuleFormError();
+    const eventType = $('ruleEvt').value;
+    const pattern = $('rulePhrase').value.trim();
+    if (pattern.length < 2) { showRuleFormError(ruleErrorMsg('pattern_too_short')); return; }
+    const body = {
+      event_type: eventType,
+      pattern,
+      direction: $('ruleDir').value,
+      case_sensitive: $('ruleCase').checked,
+    };
+    const notes = $('ruleNotes').value.trim();
+    if (notes) body.notes = notes;
+    if (eventType === 'purchase') {
+      body.value = Number($('ruleValue').value);
+      body.currency = $('ruleCurrency').value;
+      if (!Number.isFinite(body.value) || body.value <= 0) {
+        showRuleFormError(ruleErrorMsg('purchase_requires_value'));
+        return;
+      }
+    }
+    const btn = $('ruleCreateBtn');
+    btn.disabled = true;
+    setStatus('criando regra…');
+    try {
+      const { ok, data } = await apiSend('/api/ctwa/rules', 'POST', body);
+      if (!ok) { showRuleFormError(ruleErrorMsg(data.error)); setStatus('regra não criada', true); return; }
+      $('rulePhrase').value = '';
+      $('ruleNotes').value = '';
+      $('ruleValue').value = '';
+      $('ruleCase').checked = false;
+      setStatus(`regra #${data.rule?.id ?? ''} criada`);
+      loadRules();
+    } catch (e) {
+      showRuleFormError(e.message);
+      setStatus(e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ----- dry-run -----
+  $('dryRunBtn').addEventListener('click', async () => {
+    const text = $('dryText').value.trim();
+    const out = $('dryResult');
+    if (!text) {
+      out.innerHTML = dryBox('is-bad', `<b>${ruleErrorMsg('text_required')}</b>`);
+      return;
+    }
+    const phone = $('dryPhone').value.trim();
+    const btn = $('dryRunBtn');
+    btn.disabled = true;
+    setStatus('testando regras…');
+    try {
+      const body = { text, from_me: $('dryDir').value === 'out' };
+      if (phone) body.phone = phone;
+      const { ok, data } = await apiSend('/api/ctwa/rules/test', 'POST', body);
+      if (!ok || !data.ok) {
+        out.innerHTML = dryBox('is-bad', `<b>${escape(ruleErrorMsg(data.error))}</b>`);
+        setStatus('teste falhou', true);
+        return;
+      }
+      out.innerHTML = renderDryResult(data, phone);
+      setStatus(`teste concluído ${fmtTime(Date.now())}`);
+    } catch (e) {
+      out.innerHTML = dryBox('is-bad', `<b>${escape(e.message)}</b>`);
+      setStatus(e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function dryBox(cls, innerHtml) {
+    const icon = cls === ''
+      ? '<svg viewBox="0 0 12 10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 5.4 4.3 8.6 11 1.4"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v6"/><circle cx="12" cy="16.8" r=".4"/></svg>';
+    return `<div class="dry-result ${cls}"><span class="tick">${icon}</span><div>${innerHtml}</div></div>`;
+  }
+
+  function renderDryResult(data, phone) {
+    const matches = data.matches || [];
+    const wouldFire = data.would_fire || [];
+    const conv = data.conversion_found;
+
+    if (!matches.length) {
+      return dryBox('is-warn',
+        `<b>Nenhuma regra correspondeu</b> ao texto (de ${data.enabled_rules} habilitada(s)).<br>` +
+        'Nada dispararia para esta mensagem. Nenhum evento foi enviado (teste).');
+    }
+
+    const matchLines = matches.map((m) =>
+      `regra #${m.id} <span class="rule-pattern" style="font-size:.76rem;padding:2px 8px">“${escape(m.pattern)}”</span> → <b>${escape(m.event_type)}</b> · direção ${escape(DIR_LABEL[m.direction] || m.direction)}`,
+    ).join('<br>');
+
+    let convLine;
+    if (conv) {
+      convLine = `Conversão CTWA <b>#${conv.id}</b> encontrada <span class="mono">(${escape((conv.ctwa_clid || '').slice(0, 18))}…)</span>.`;
+    } else if (phone) {
+      convLine = `<b>Nenhuma conversão CTWA</b> para <span class="mono">${escape(phone)}</span> — num caso real, nada dispararia (sem ctwa_clid não há atribuição).`;
+    } else {
+      convLine = 'Telefone não informado — guardas por contato não foram avaliadas.';
+    }
+
+    const fireLines = wouldFire.map((w) => {
+      const val = (w.event_type === 'purchase' && w.value != null)
+        ? ` <span class="mono">(${escape(w.currency || '')} ${escape(String(w.value))})</span>` : '';
+      if (w.blocked_by_guard) {
+        return `<li><b>${escape(w.event_type)}</b>${val} — <b>bloqueado pela guarda</b> <span class="mono">${escape(w.blocked_by_guard)}</span> (já enviado para este contato)</li>`;
+      }
+      return `<li>Dispararia <b>${escape(w.event_type)}</b>${val} (regra #${w.rule_id})</li>`;
+    }).join('');
+
+    const anyUnblocked = wouldFire.some((w) => !w.blocked_by_guard);
+    return dryBox(anyUnblocked ? '' : 'is-warn',
+      `<b>${matches.length} regra(s) corresponderam</b> (de ${data.enabled_rules} habilitada(s)):<br>${matchLines}<br>` +
+      `${convLine}` +
+      (fireLines ? `<ul>${fireLines}</ul>` : '<br>') +
+      '<span style="opacity:.8">Nenhum evento foi enviado — isto é um teste.</span>');
+  }
+
+  // ============================================================
+  // gaveta (comum)
+  // ============================================================
+  function showDrawer(title, metaTitle) {
+    $('drawer').classList.add('open');
+    $('drawer').setAttribute('aria-hidden', 'false');
+    $('drawerScrim').classList.add('open');
+    $('drawerAvatar').textContent = '…';
+    $('drawerTitle').textContent = title;
+    $('drawerSub').innerHTML = '';
+    $('drawerMetaTitleText').textContent = metaTitle || 'Detalhes';
+    $('drawerMeta').innerHTML = '<dt>carregando</dt><dd>…</dd>';
+    $('drawerActions').classList.add('hidden');
+    $('drawerPurchase').innerHTML = '';
+    $('drawerQualified').innerHTML = '';
+    $('drawerCapiPanel').classList.add('hidden');
+    $('drawerCapi').innerHTML = '';
+    $('drawerRawPanel').classList.add('hidden');
+    $('drawerRaw').textContent = '';
+  }
+  function closeDrawer() {
+    $('drawer').classList.remove('open');
+    $('drawer').setAttribute('aria-hidden', 'true');
+    $('drawerScrim').classList.remove('open');
+  }
+  $('drawerClose').addEventListener('click', closeDrawer);
+  $('drawerScrim').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDrawer();
+  });
+
+  // ============================================================
+  // wiring + auto-refresh
+  // ============================================================
+  $('refreshBtn').addEventListener('click', loadEvents);
+  $('refreshBtnConv').addEventListener('click', loadConversions);
+  $('evFilter').addEventListener('change', loadEvents);
+  $('limitEvents').addEventListener('change', loadEvents);
+  $('leadStatus').addEventListener('change', loadConversions);
+
+  $('flushBtn').addEventListener('click', async () => {
+    const btn = $('flushBtn');
+    btn.disabled = true;
+    setStatus('reenviando pendentes…');
+    try {
+      const { ok, status, data } = await apiSend('/api/ctwa/retry-pending', 'POST');
+      if (!ok) throw new Error(`HTTP ${status}`);
+      setStatus(`reenvio: ${data.leads_sent}/${data.leads_retried} leads enviados, ${data.ads_enriched} anúncios enriquecidos` +
+        (data.errors && data.errors.length ? `, ${data.errors.length} erro(s)` : ''));
+      await loadConversions();
+    } catch (e) {
+      setStatus(e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  let debouncePn, debounceCmp, debounceAd;
+  $('senderPn').addEventListener('input', () => { clearTimeout(debouncePn); debouncePn = setTimeout(loadEvents, 300); });
+  $('campaignId').addEventListener('input', () => { clearTimeout(debounceCmp); debounceCmp = setTimeout(loadConversions, 300); });
+  $('adId').addEventListener('input', () => { clearTimeout(debounceAd); debounceAd = setTimeout(loadConversions, 300); });
+
+  // Auto-refresh: eventos 5s, conversões 10s. Os timers só agem quando a
+  // aba correspondente está ativa — trocar de aba pausa o refresh dela.
+  let timerEvents = null, timerConv = null;
+  function applyAuto() {
+    if (timerEvents) { clearInterval(timerEvents); timerEvents = null; }
+    if (timerConv) { clearInterval(timerConv); timerConv = null; }
+    if ($('autoRefresh').checked) timerEvents = setInterval(() => { if (activeTab === 'eventos') loadEvents(); }, 5000);
+    if ($('autoRefreshConv').checked) timerConv = setInterval(() => { if (activeTab === 'conversoes') loadConversions(); }, 10000);
+  }
+  $('autoRefresh').addEventListener('change', applyAuto);
+  $('autoRefreshConv').addEventListener('change', applyAuto);
+
+  load();
+  applyAuto();
+</script>
+</body>
+</html>
