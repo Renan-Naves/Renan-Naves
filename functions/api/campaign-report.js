@@ -46,8 +46,11 @@ export async function onRequestGet(context) {
   }
 
   const { from, to } = resolveRange(url.searchParams.get('from'), url.searchParams.get('to'));
-  const fromTs = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000);
-  const toTs = Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000);
+  // Day boundaries in the account timezone (Ads Manager / Google Ads days), not UTC.
+  const tz = tzOffset(env);
+  const fromTs = Math.floor(Date.parse(`${from}T00:00:00${tz}`) / 1000);
+  const toTs = Math.floor(Date.parse(`${to}T23:59:59${tz}`) / 1000);
+  const tzMod = sqliteTzModifier(tz);
   const db = env.DB;
 
   try {
@@ -78,11 +81,11 @@ export async function onRequestGet(context) {
       `).bind(GOOGLE_SOURCE, fromTs, toTs).first(),
 
       db.prepare(`
-        SELECT date(e.timestamp,'unixepoch') AS date, COUNT(*) AS n
+        SELECT date(e.timestamp,'unixepoch',?) AS date, COUNT(*) AS n
         FROM event_log e JOIN sessions s ON e.session_id = s.session_id
         WHERE e.event_name='Lead' AND e.is_bot=0 AND s.utm_source=? AND e.timestamp >= ? AND e.timestamp <= ?
-        GROUP BY date(e.timestamp,'unixepoch')
-      `).bind(GOOGLE_SOURCE, fromTs, toTs).all(),
+        GROUP BY 1
+      `).bind(tzMod, GOOGLE_SOURCE, fromTs, toTs).all(),
 
       db.prepare(`
         SELECT COALESCE(NULLIF(TRIM(s.utm_term),''),'(sem palavra-chave)') AS keyword, COUNT(*) AS leads
@@ -121,9 +124,9 @@ export async function onRequestGet(context) {
       `SELECT COUNT(*) AS n FROM wa_conversations WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ?`,
       [fromTs, toTs], { n: 0 });
     const metaLeadsDaily = await safeAll(db,
-      `SELECT date(created_at,'unixepoch') AS date, COUNT(*) AS n FROM wa_conversations
-       WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ? GROUP BY date(created_at,'unixepoch')`,
-      [fromTs, toTs], []);
+      `SELECT date(created_at,'unixepoch',?) AS date, COUNT(*) AS n FROM wa_conversations
+       WHERE platform='meta' AND deleted_at IS NULL AND created_at >= ? AND created_at <= ? GROUP BY 1`,
+      [tzMod, fromTs, toTs], []);
     const funnelRow = await safeFirst(db,
       `SELECT COUNT(*) AS leads,
               COALESCE(SUM(is_qualified),0) AS qualified,
@@ -302,6 +305,18 @@ async function safeAll(db, sql, binds, fallback) {
 }
 
 function num(v) { return Number(v || 0); }
+
+// TIMEZONE_OFFSET ('-03:00' default) → validated offset, and the SQLite date()
+// modifier that shifts a unix timestamp into that local day ('-180 minutes').
+function tzOffset(env) {
+  const tz = String(env.TIMEZONE_OFFSET || '-03:00').trim();
+  return /^[+-]\d{2}:\d{2}$/.test(tz) ? tz : '-03:00';
+}
+function sqliteTzModifier(tz) {
+  const sign = tz[0] === '-' ? -1 : 1;
+  const mins = sign * (parseInt(tz.slice(1, 3), 10) * 60 + parseInt(tz.slice(4, 6), 10));
+  return `${mins >= 0 ? '+' : ''}${mins} minutes`;
+}
 
 function resolveRange(rawFrom, rawTo) {
   const today = new Date();

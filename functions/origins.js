@@ -44,6 +44,30 @@ const UTM_SOURCE_MAP = {
   'tiktok-bio': 'tiktok-bio', 'tiktok': 'tiktok-bio', 'tt-bio': 'tiktok-bio',
 };
 
+// Fallback when a message carries no ctwa_clid and no "#xxxxxxxx" token: the
+// pre-filled first-message text still tells us where the lead came from.
+//   - "Olá! Posso saber mais informações sobre isto?" is WhatsApp's default
+//     Click-to-WhatsApp greeting — only the Meta ad's button produces it. Some
+//     CTWA messages reach uazapi without the ad context (no externalAdReply), so
+//     without this they'd land as 'unknown' while Ads Manager counts them.
+//     No clid → counted as Meta, but no conversion can be uploaded for it.
+//   - "acessei o link do instagram/tiktok" is the linktree/bio pre-filled text.
+// Returns { platform, linkMethod, utmSource, utmMedium } or null.
+const TEXT_RULES = [
+  { re: /posso saber mais informa[cç][oõ]es sobre isto/i,
+    hit: { platform: 'meta', linkMethod: 'ctwa-text', utmSource: 'meta-ads', utmMedium: 'ctwa-text' } },
+  { re: /acessei o link do instagram/i,
+    hit: { platform: 'organic', linkMethod: 'text', utmSource: 'instagram-bio', utmMedium: 'bio' } },
+  { re: /acessei o link do tik\s?tok/i,
+    hit: { platform: 'organic', linkMethod: 'text', utmSource: 'tiktok-bio', utmMedium: 'bio' } },
+];
+
+export function originFromText(text) {
+  const t = String(text || '');
+  for (const r of TEXT_RULES) if (r.re.test(t)) return r.hit;
+  return null;
+}
+
 export function originLabel(key) { return LABELS[key] || key; }
 export function isValidOrigin(key) { return VALID.has(key); }
 

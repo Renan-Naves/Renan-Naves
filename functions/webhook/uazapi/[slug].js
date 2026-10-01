@@ -13,12 +13,17 @@
 //                   (set by shared/renan.js). We look up the matching session,
 //                   pull gclid/fbc/utms. platform='google' (or by utm_source),
 //                   link_method='token'.
-//   3. Neither    → store raw; platform='unknown', link_method='unresolved'
+//   3. Text       → no clid/token but a known pre-filled text (CTWA default
+//                   greeting → meta/'ctwa-text'; bio links → organic). See
+//                   originFromText() in functions/origins.js.
+//   4. Neither    → store raw; platform='unknown', link_method='unresolved'
 //                   (the attendant links it by hand in the dashboard).
 //
 // IMPORTANT: uazapi's exact payload shape must be confirmed against a real
 // sample before go-live. The normalise() function below isolates that mapping —
 // adjust the field paths there once we have a captured payload.
+
+import { originFromText } from '../../origins.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -82,6 +87,9 @@ export async function onRequestPost(context) {
   }
 
   const resolved = await resolveAttribution(env, msg);
+  if (!resolved.ctwaClid) {
+    try { await captureRaw(env, payload, msg); } catch (_) { /* TEMP diag must never break the webhook */ }
+  }
 
   let conversationId = null;
   try {
@@ -290,7 +298,30 @@ async function resolveAttribution(env, msg) {
     } catch (_) { /* fall through to unresolved */ }
   }
 
+  // 3) pre-filled text (CTWA default greeting without ad context, bio links)
+  const byText = originFromText(msg.text);
+  if (byText) return { ...base, ...byText };
+
   return base;
+}
+
+// TEMP DIAGNOSTIC (remove with functions/api/wa-debug.js once the missing-clid
+// cause is known). Stores inbound payloads that arrived WITHOUT a ctwa_clid, so
+// we can see whether uazapi sent the ad context somewhere normalise() doesn't
+// read. Long strings (thumbnails, base64) are shortened to "<N chars: head…>"
+// instead of truncating the whole payload — the 2026-06 capture cut at 8000
+// chars and hid externalAdReply.ctwaClid behind the thumbnail.
+async function captureRaw(env, payload, msg) {
+  if (!env.DB) return;
+  await env.DB.prepare(
+    'CREATE TABLE IF NOT EXISTS wa_raw_debug (id INTEGER PRIMARY KEY AUTOINCREMENT, raw TEXT, has_ref INTEGER, created_at INTEGER)'
+  ).run();
+  const raw = JSON.stringify(payload, (k, v) =>
+    (typeof v === 'string' && v.length > 400) ? `<${v.length} chars: ${v.slice(0, 40)}…>` : v);
+  const hasRef = (/ctwa|externalAdReply|conversionSource|referral|sourceID|entryPoint/i.test(raw)
+    || /posso saber mais informa/i.test(msg.text || '')) ? 1 : 0;
+  await env.DB.prepare('INSERT INTO wa_raw_debug (raw, has_ref, created_at) VALUES (?, ?, ?)')
+    .bind(raw.slice(0, 60000), hasRef, Math.floor(Date.now() / 1000)).run();
 }
 
 function json(body, status = 200) {

@@ -21,8 +21,10 @@ export async function onRequestGet(context) {
   }
 
   const { from, to } = resolveRange(url.searchParams.get('from'), url.searchParams.get('to'));
-  const fromTs = Math.floor(Date.parse(`${from}T00:00:00Z`) / 1000);
-  const toTs = Math.floor(Date.parse(`${to}T23:59:59Z`) / 1000);
+  // day boundaries in the account timezone (TIMEZONE_OFFSET, default -03:00), not UTC
+  const tz = /^[+-]\d{2}:\d{2}$/.test(String(env.TIMEZONE_OFFSET || '')) ? env.TIMEZONE_OFFSET : '-03:00';
+  const fromTs = Math.floor(Date.parse(`${from}T00:00:00${tz}`) / 1000);
+  const toTs = Math.floor(Date.parse(`${to}T23:59:59${tz}`) / 1000);
   const originFilter = url.searchParams.get('origin') || '';
   const archived = url.searchParams.get('archived') === '1';
 
