@@ -49,13 +49,14 @@ export async function fireGoogleMessageLead(env, { conversationId, gclid, phone,
 // so the retry keeps the original conversion time.
 export async function retryFailedMessageLeads(env, { limit = 200 } = {}) {
   const { results } = await env.DB.prepare(`
-    SELECT f.click_id AS gclid, MIN(f.fired_at) AS event_time, MAX(f.conversation_id) AS conversation_id,
-           (SELECT wa_phone FROM wa_conversations c WHERE c.id = MAX(f.conversation_id)) AS phone
-      FROM conversion_fires f
-     WHERE f.event_name = 'Lead' AND f.platform = 'google'
-     GROUP BY f.click_id
-    HAVING MAX(f.response_ok) = 0
-     LIMIT ?
+    SELECT g.gclid, g.event_time, g.conversation_id, c.wa_phone AS phone
+      FROM (SELECT click_id AS gclid, MIN(fired_at) AS event_time, MAX(conversation_id) AS conversation_id
+              FROM conversion_fires
+             WHERE event_name = 'Lead' AND platform = 'google'
+             GROUP BY click_id
+            HAVING MAX(response_ok) = 0
+             LIMIT ?) g
+      LEFT JOIN wa_conversations c ON c.id = g.conversation_id
   `).bind(limit).all();
 
   const out = [];
