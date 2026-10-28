@@ -1,4 +1,4 @@
-// GET /api/test-google-conversion?key=...&type=qualified|purchase|lead&gclid=...&value=...
+// GET /api/test-google-conversion?key=...&type=qualified|purchase|lead|message&gclid=...&value=...
 //
 // Diagnostic ONLY. Fires a Google Ads Data Manager conversion with
 // `validateOnly:true` — Google validates auth + account ids + conversion action
@@ -21,6 +21,7 @@ export async function onRequestGet(context) {
   const type = (url.searchParams.get('type') || 'qualified').toLowerCase();
   const actionMap = {
     lead: env.GOOGLE_ADS_LEAD_CONVERSION_ACTION_ID,
+    message: env.GOOGLE_ADS_MESSAGE_CONVERSION_ACTION_ID,
     qualified: env.GOOGLE_ADS_QUALIFIED_CONVERSION_ACTION_ID,
     purchase: env.GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID,
   };

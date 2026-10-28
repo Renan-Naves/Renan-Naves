@@ -36,6 +36,7 @@ import { originFromText } from '../../origins.js';
 import { ensureCtwaSchema } from '../../lib/ctwa-schema.js';
 import { upsertConversion, fireLead, enrichAdIfStale, normalizePhone } from '../../lib/ctwa-capi.js';
 import { evaluateAutoRules } from '../../lib/ctwa-rules.js';
+import { sendGoogleOfflineConversion } from '../../google-ads.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -153,6 +154,17 @@ export async function onRequestPost(context) {
     await linkEvent(env, eventId, conversationId);
   }
 
+  // Google Ads: the primary Lead is the MESSAGE that arrives carrying the token of
+  // a Google session, not the click on the site button (that one still goes to the
+  // old action, now secondary, from /tracker). One per gclid. Uses the token
+  // resolved from THIS message, so a returning contact who comes back through a
+  // new ad still counts once for the new click.
+  if (resolved.linkMethod === 'token' && resolved.platform === 'google' && resolved.gclid) {
+    context.waitUntil(fireGoogleMessageLead(env, {
+      conversationId, gclid: resolved.gclid, phone: resolved.phone, eventTime: msgAt,
+    }).catch(() => {}));
+  }
+
   // CTWA: one ctwa_conversions row per click; the first sight fires LeadSubmitted.
   // A returning contact who clicks a NEW ad gets a new row (new clid) even though
   // wa_conversations keeps its first-touch attribution.
@@ -233,6 +245,46 @@ async function trackCtwa(context, { msg, clid, conversationId, eventId, eventTim
   } catch (_) {
     return null;
   }
+}
+
+// Upload the message-level Lead to Google Ads (GOOGLE_ADS_MESSAGE_CONVERSION_ACTION_ID)
+// and audit it in conversion_fires. Idempotent per gclid: skips once an ok row
+// exists, and the transaction id is derived from the gclid so a webhook retry
+// racing the audit row is still deduped by Google. Never throws.
+async function fireGoogleMessageLead(env, { conversationId, gclid, phone, eventTime }) {
+  const conversionActionId = env.GOOGLE_ADS_MESSAGE_CONVERSION_ACTION_ID;
+  if (!conversionActionId) return;
+  try {
+    const existing = await env.DB.prepare(`
+      SELECT id FROM conversion_fires
+      WHERE click_id = ? AND event_name = 'Lead' AND platform = 'google' AND response_ok = 1 LIMIT 1
+    `).bind(gclid).first();
+    if (existing) return;
+  } catch (_) { /* conversion_fires not migrated → proceed best-effort */ }
+
+  const eventId = 'wamsg-' + (await sha256Hex(gclid)).slice(0, 32);
+  const result = await sendGoogleOfflineConversion({
+    env, conversionActionId, gclid, eventTime, transactionId: eventId, phone,
+  });
+
+  try {
+    await env.DB.prepare(`
+      INSERT INTO conversion_fires
+        (conversation_id, event_name, platform, click_id, click_id_type, value_cents, currency,
+         event_id, status_code, response_ok, response_body, fired_at)
+      VALUES (?, 'Lead', 'google', ?, 'gclid', NULL, 'BRL', ?, ?, ?, ?, ?)
+    `).bind(
+      conversationId ?? null, gclid, eventId,
+      result.response?.status ?? null, result.response?.ok ? 1 : 0,
+      result.skipped ? `skipped: ${result.skipped}` : (result.body || '').slice(0, 1000),
+      Math.floor(Date.now() / 1000),
+    ).run();
+  } catch (_) { /* ignore audit failure */ }
+}
+
+async function sha256Hex(value) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(value)));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Insert one message into the thread. INSERT OR IGNORE dedups on wa_message_id
