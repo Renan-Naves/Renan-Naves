@@ -398,10 +398,13 @@ async function resolveAttribution(env, msg) {
   if (m && env.DB) {
     const prefix = m[1].toLowerCase();
     try {
+      // The token is the first 8 chars of the session id, which sit before the first
+      // hyphen, so a range on the primary key finds it reading one row instead of
+      // scanning the whole table (D1 free tier: 5M rows read/day).
       const s = await env.DB.prepare(
         `SELECT session_id, gclid, fbc, fbp, utm_source, utm_medium, utm_campaign, utm_content, utm_term
-         FROM sessions WHERE lower(replace(session_id,'-','')) LIKE ? LIMIT 1`
-      ).bind(prefix + '%').first();
+         FROM sessions WHERE session_id >= ? AND session_id < ? LIMIT 1`
+      ).bind(prefix, prefix + '~').first();
       if (s) {
         return {
           ...base, platform: s.utm_source === 'meta-ads' ? 'meta' : (s.utm_source === 'google-ads' || s.gclid ? 'google' : 'organic'),
