@@ -51,10 +51,19 @@ const UTM_SOURCE_MAP = {
 //     CTWA messages reach uazapi without the ad context (no externalAdReply), so
 //     without this they'd land as 'unknown' while Ads Manager counts them.
 //     No clid → counted as Meta, but no conversion can be uploaded for it.
+//   - "Olá! Posso ter mais informações sobre isso?" is the other default Meta
+//     greeting (seen 2026-10-05 arriving with no ad context).
+//   - "Vi o anúncio ..." is the agency's pre-filled text on every Meta WhatsApp
+//     ad since 2026-11-11 (one sentence per ad), so the text alone identifies
+//     the ad when the click id is missing.
 //   - "acessei o link do instagram/tiktok" is the linktree/bio pre-filled text.
 // Returns { platform, linkMethod, utmSource, utmMedium } or null.
 const TEXT_RULES = [
   { re: /posso saber mais informa[cç][oõ]es sobre isto/i,
+    hit: { platform: 'meta', linkMethod: 'ctwa-text', utmSource: 'meta-ads', utmMedium: 'ctwa-text' } },
+  { re: /posso ter mais informa[cç][oõ]es sobre isso/i,
+    hit: { platform: 'meta', linkMethod: 'ctwa-text', utmSource: 'meta-ads', utmMedium: 'ctwa-text' } },
+  { re: /\bvi o an[uú]ncio\b/i,
     hit: { platform: 'meta', linkMethod: 'ctwa-text', utmSource: 'meta-ads', utmMedium: 'ctwa-text' } },
   { re: /acessei o link do instagram/i,
     hit: { platform: 'organic', linkMethod: 'text', utmSource: 'instagram-bio', utmMedium: 'bio' } },
