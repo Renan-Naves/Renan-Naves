@@ -39,6 +39,15 @@ indicações e o **disparo de conversão CTWA para a Meta** (ver `## Conversão 
   LP view, conversas WPP Meta, conversas WPP Google), gráfico de performance diária
   (investimento × leads/CPL por plataforma), melhores anúncios Meta (top 10), palavras-chave
   de conversão Google (top 10).
+- **Funil Meta (KROB whatsapp-tracking v0.3, desde 11/11/2026):** os contatos que chegaram pelo botão
+  do anúncio (`ctwa_conversions`) em cinco etapas: Lead novo (`LeadSubmitted`, sozinho), Respondeu
+  (`ViewContent`, sozinho quando o lead escreve depois de uma mensagem **humana** da clínica), Orçou
+  (`QualifiedLead`), Agendou (`Purchase` com valor) e Desqualificado (`OrderCanceled`, só público de
+  exclusão, nunca otimização). Botões por linha, filtro por etapa, exportar telefones (CSV para lista
+  de clientes) e o cadastro das **mensagens automáticas da clínica** (regras `auto_message`), que não
+  contam como resposta. APIs: `GET /api/ctwa/funnel`, `POST /api/ctwa/fire-replied`,
+  `POST /api/ctwa/disqualify`, `GET /api/ctwa/export`, `/api/ctwa/rules`. Lógica em
+  `functions/lib/ctwa-funnel.js`; migration `0027`. Desqualificar espelha "Perdido" na aba WhatsApp.
 - **WhatsApp / Comercial:** funil (leads / qualificados / vendas qtd / valor vendido) + lista
   de leads com marcação manual (Qualificar / Venda / Perdido). **Mini-CRM:** cada linha tem uma
   bolinha de atendimento (🔴 nova não lida / 🟡 lida sem resposta / 🟢 aguardando o lead, derivada
