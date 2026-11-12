@@ -24,6 +24,7 @@ export async function onRequestPut({ request, env, params }) {
     direction: patch.direction ?? existing.direction,
     value: patch.value ?? existing.value,
     currency: patch.currency ?? existing.currency,
+    reason: patch.reason ?? existing.reason,
     notes: patch.notes ?? existing.notes,
     enabled: patch.enabled ?? (existing.enabled === 1),
   };
@@ -32,9 +33,9 @@ export async function onRequestPut({ request, env, params }) {
 
   await env.DB.prepare(`
     UPDATE wa_auto_rules SET enabled=?, event_type=?, match_type=?, pattern=?, case_sensitive=?,
-           direction=?, value=?, currency=?, notes=? WHERE id=?`).bind(
+           direction=?, value=?, currency=?, reason=?, notes=? WHERE id=?`).bind(
     rule.enabled, rule.event_type, rule.match_type, rule.pattern, rule.case_sensitive,
-    rule.direction, rule.value, rule.currency, rule.notes, id,
+    rule.direction, rule.value, rule.currency, rule.reason, rule.notes, id,
   ).run();
   const row = await env.DB.prepare('SELECT * FROM wa_auto_rules WHERE id = ?').bind(id).first();
   return json({ ok: true, rule: row });

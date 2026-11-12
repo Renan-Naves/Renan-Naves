@@ -15,11 +15,15 @@
 //   LeadSubmitted  → fired automatically by the uazapi webhook on the first message
 //   QualifiedLead  → manual (dashboard / rastreador) or an auto-fire rule
 //   Purchase       → manual (dashboard / rastreador) or an auto-fire rule
+//   ViewContent    → "Respondeu" (KROB v0.3): automatic via lib/ctwa-funnel.js
+//                    detectReply, or manual / rule
+//   OrderCanceled  → "Desqualificado" (KROB v0.3): manual or rule; feeds an
+//                    exclusion audience, never an optimization event
 // Each fire: build → (send → log to ctwa_capi_log) × up to 5 with backoff → update row.
 // Never throws on missing creds: the row records 'skipped_no_creds'.
 
 const GRAPH_VERSION = 'v25.0';
-const PARTNER_AGENT = 'krob-whatsapp-tracker/0.2-renan';
+const PARTNER_AGENT = 'krob-whatsapp-tracker/0.3-renan';
 const AD_CACHE_TTL_MS = 7 * 24 * 3600_000;
 const CTWA_WINDOW_MS = 7 * 24 * 3600_000; // Meta attributes a CTWA event up to 7 days after the click
 
@@ -100,6 +104,26 @@ export async function buildPurchaseEvent(env, { ctwaClid, phone, value, currency
     eventName: 'Purchase', eventId: `${ctwaClid}:purchase${orderId ? ':' + orderId : ''}`, ctwaClid, phone, eventTime,
   });
   ev.custom_data = { currency: currency || creds(env).currency, value };
+  return wrap(env, ev);
+}
+
+// "Respondeu": the lead wrote back after a human message from the clinic.
+// ViewContent is the business_messaging event closest to "asked for more".
+export async function buildRepliedEvent(env, { ctwaClid, adId, phone, eventTime }) {
+  const ev = await baseEvent(env, {
+    eventName: env.META_REPLIED_EVENT_NAME || 'ViewContent', eventId: `${ctwaClid}:replied`, ctwaClid, phone, eventTime,
+  });
+  if (adId) ev.custom_data = { ad_id: adId };
+  return wrap(env, ev);
+}
+
+// "Desqualificado": the business_messaging list has no negative event;
+// OrderCanceled is the closest. No reason or note leaves the stack.
+export async function buildDisqualifiedEvent(env, { ctwaClid, adId, phone, eventTime }) {
+  const ev = await baseEvent(env, {
+    eventName: env.META_DISQUALIFIED_EVENT_NAME || 'OrderCanceled', eventId: `${ctwaClid}:disqualified`, ctwaClid, phone, eventTime,
+  });
+  if (adId) ev.custom_data = { ad_id: adId };
   return wrap(env, ev);
 }
 
@@ -224,7 +248,7 @@ function isRetryable(r) {
 
 // Shared fire loop. `prefix` is the column family: lead | qualified_lead | purchase.
 // The column names come from this fixed set, never from input.
-const PREFIXES = new Set(['lead', 'qualified_lead', 'purchase']);
+const PREFIXES = new Set(['lead', 'qualified_lead', 'purchase', 'replied', 'disqualified']);
 
 async function fireWithRetry(env, { conversionId, prefix, body, extraSentSets = '', extraSentBinds = [] }) {
   if (!PREFIXES.has(prefix)) throw new Error('bad prefix');
@@ -281,6 +305,17 @@ export async function firePurchase(env, { conversionId, ctwaClid, phone, value, 
   });
 }
 
+export async function fireReplied(env, { conversionId, ctwaClid, adId, phone, eventTime, source }) {
+  await env.DB.prepare('UPDATE ctwa_conversions SET replied_source = ? WHERE id = ?').bind(source || null, conversionId).run();
+  const body = await buildRepliedEvent(env, { ctwaClid, adId, phone, eventTime });
+  return fireWithRetry(env, { conversionId, prefix: 'replied', body });
+}
+
+export async function fireDisqualified(env, { conversionId, ctwaClid, adId, phone, eventTime }) {
+  const body = await buildDisqualifiedEvent(env, { ctwaClid, adId, phone, eventTime });
+  return fireWithRetry(env, { conversionId, prefix: 'disqualified', body });
+}
+
 // Mirror a QualifiedLead / Purchase fired from the rastreador or an auto rule onto
 // the dashboard's wa_conversations funnel (the same columns /api/mark-conversion
 // sets), so both screens agree. Never downgrades a sale back to qualified.
@@ -299,6 +334,15 @@ export async function syncFunnel(env, waConversationId, { kind, valueCents, curr
          SET status = 'sale', is_qualified = 1, sale_value_cents = ?, sale_currency = ?,
              qualified_at = COALESCE(qualified_at, ?), sale_at = ?, marked_by = ?, updated_at = ?
        WHERE id = ?`).bind(valueCents, currency || 'BRL', now, now, markedBy, now, waConversationId).run();
+  } else if (kind === 'lost') {
+    // Desqualificado -> "Perdido" on the dashboard list; a sale stays a sale.
+    await env.DB.prepare(`
+      UPDATE wa_conversations SET status = CASE WHEN status = 'sale' THEN 'sale' ELSE 'lost' END,
+             marked_by = ?, updated_at = ? WHERE id = ?`).bind(markedBy, now, waConversationId).run();
+  } else if (kind === 'unlost') {
+    await env.DB.prepare(`
+      UPDATE wa_conversations SET status = CASE WHEN is_qualified = 1 THEN 'qualified' ELSE 'new' END,
+             marked_by = ?, updated_at = ? WHERE id = ? AND status = 'lost'`).bind(markedBy, now, waConversationId).run();
   }
 }
 

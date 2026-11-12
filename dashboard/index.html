@@ -174,6 +174,7 @@
       <nav class="flex gap-5">
         <div class="tab-btn active" data-tab="resultados">Resultados</div>
         <div class="tab-btn" data-tab="whatsapp">WhatsApp / Comercial</div>
+        <div class="tab-btn" data-tab="funil">Funil Meta</div>
         <div class="tab-btn" data-tab="atribuicao">Atribuição (UTM)</div>
       </nav>
     </div>
@@ -417,6 +418,82 @@
       </section>
     </div>
 
+    <!-- ======================= TAB: FUNIL META (KROB v0.3) ======================= -->
+    <div id="tab-funil" class="hidden">
+
+      <section>
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-2.5">
+          <div class="section-label">Funil do anúncio de WhatsApp (Meta)</div>
+          <span class="live" title="Atualiza automaticamente"><span class="pulse"></span>ao vivo</span>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 stagger" id="fz-kpis">
+          <div class="card kpi fz-kpi" data-stage="novo"><div class="kpi-rule" style="background:var(--meta)"></div>
+            <div class="kpi-label">1 · Lead novo</div><div class="kpi-value mono" id="fz-n-novo">—</div>
+            <div class="kpi-sub">Primeira mensagem pelo anúncio</div></div>
+          <div class="card kpi fz-kpi" data-stage="respondeu"><div class="kpi-rule"></div>
+            <div class="kpi-label">2 · Respondeu</div><div class="kpi-value mono" id="fz-n-respondeu" style="color:var(--accent)">—</div>
+            <div class="kpi-sub">Escreveu de novo após a clínica</div></div>
+          <div class="card kpi fz-kpi" data-stage="orcou"><div class="kpi-rule" style="background:var(--google)"></div>
+            <div class="kpi-label">3 · Orçou</div><div class="kpi-value mono" id="fz-n-orcou" style="color:var(--google)">—</div>
+            <div class="kpi-sub">Perguntou o preço</div></div>
+          <div class="card kpi fz-kpi" data-stage="agendou"><div class="kpi-rule" style="background:var(--green)"></div>
+            <div class="kpi-label">4 · Agendou</div><div class="kpi-value mono" id="fz-n-agendou" style="color:var(--green)">—</div>
+            <div class="kpi-sub">Consulta marcada</div></div>
+          <div class="card kpi fz-kpi" data-stage="desqualificado"><div class="kpi-rule" style="background:var(--red)"></div>
+            <div class="kpi-label">5 · Desqualificado</div><div class="kpi-value mono" id="fz-n-desqualificado" style="color:var(--red)">—</div>
+            <div class="kpi-sub">Sai como público de exclusão</div></div>
+        </div>
+        <div class="notice mt-3">
+          <span>
+            <strong>Como funciona.</strong> Cada pessoa que chama pelo botão do anúncio entra aqui. <em>Lead novo</em> e
+            <em>Respondeu</em> são marcados sozinhos: Respondeu quando a pessoa escreve de novo depois de uma mensagem
+            <strong>de alguém da clínica</strong> (a saudação automática não conta). <em>Orçou</em>, <em>Agendou</em> e
+            <em>Desqualificado</em> são marcados nos botões. Cada etapa vai para a Meta, que aprende quem vira paciente.
+          </span>
+        </div>
+      </section>
+
+      <section class="card p-5 fade-in mt-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <span class="font-semibold head">Contatos vindos do anúncio</span>
+          <div class="seg" id="fz-filter">
+            <div class="seg-btn active" data-stage="">Todos</div>
+            <div class="seg-btn" data-stage="novo">Novos</div>
+            <div class="seg-btn" data-stage="respondeu">Responderam</div>
+            <div class="seg-btn" data-stage="orcou">Orçaram</div>
+            <div class="seg-btn" data-stage="agendou">Agendaram</div>
+            <div class="seg-btn" data-stage="desqualificado">Desqualificados</div>
+          </div>
+        </div>
+        <div class="overflow-x-auto -mx-1">
+          <table>
+            <thead><tr><th>Contato</th><th>Anúncio</th><th>Chegou</th><th>Etapa</th><th>Enviado à Meta</th><th>Ações</th></tr></thead>
+            <tbody id="rows-funil"><tr><td colspan="6" class="text-center" style="color:var(--muted)">Carregando…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 mt-4 text-xs" style="color:var(--dim)">
+          <span>Exportar telefones da etapa selecionada (CSV para Público personalizado → Lista de clientes):</span>
+          <button id="fz-export" class="btn-sm">Exportar público</button>
+          <span id="fz-export-msg"></span>
+        </div>
+      </section>
+
+      <section class="card p-5 fade-in mt-6">
+        <div class="font-semibold head mb-1">Mensagens automáticas da clínica</div>
+        <div class="text-xs mb-3" style="color:var(--dim)">
+          Cole um trecho fixo de cada mensagem automática (saudação do WhatsApp Business, aviso de fora do horário).
+          Mensagem da clínica com esse trecho não conta como "a clínica respondeu". Resposta enviada em menos de
+          10 segundos também é tratada como automática.
+        </div>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <input id="fz-auto-text" type="text" class="date-input flex-1" style="min-width:220px" maxlength="200"
+                 placeholder="Ex.: Olá! Obrigado pelo contato com a Clínica">
+          <button id="fz-auto-add" class="btn btn-primary">Adicionar</button>
+        </div>
+        <div id="fz-auto-list" class="text-sm"></div>
+      </section>
+    </div>
+
     <!-- ======================= TAB: ATRIBUIÇÃO (UTM) ======================= -->
     <div id="tab-atribuicao" class="hidden">
 
@@ -472,6 +549,32 @@
       <span><span class="dot-google">●</span> Google: <span id="sync-google">—</span></span>
     </footer>
   </main>
+</div>
+
+<!-- ============================ FUNIL META: modal de etapa ============================ -->
+<div id="fz-modal" class="modal-bg hidden" style="z-index:80">
+  <div class="card w-full max-w-md p-6 fade-in">
+    <div class="font-semibold head text-lg mb-1" id="fz-m-title">—</div>
+    <div class="text-sm mb-4" style="color:var(--dim)" id="fz-m-text">—</div>
+    <div id="fz-m-value-wrap" class="hidden mb-4">
+      <label class="section-label block mb-1">Valor da consulta (R$)</label>
+      <input id="fz-m-value" type="number" min="1" step="0.01" class="date-input w-full" value="800">
+    </div>
+    <div id="fz-m-reason-wrap" class="hidden mb-4">
+      <label class="section-label block mb-1">Motivo (não vai para a Meta)</label>
+      <select id="fz-m-reason" class="date-input w-full">
+        <option value="nao_respondeu">Não respondeu</option>
+        <option value="fora_do_perfil">Fora do perfil</option>
+        <option value="sem_orcamento">Sem orçamento</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div id="fz-m-err" class="hidden text-sm mb-3" style="color:var(--red)"></div>
+    <div class="flex justify-end gap-2">
+      <button id="fz-m-cancel" class="btn btn-ghost">Cancelar</button>
+      <button id="fz-m-ok" class="btn btn-primary">Confirmar</button>
+    </div>
+  </div>
 </div>
 
 <!-- ============================ CONFIRM MODAL (funil) ============================ -->
@@ -638,7 +741,7 @@
 
   // -------- fetch --------
   function qs(){ return 'key='+encodeURIComponent(KEY)+'&from='+encodeURIComponent(state.from)+'&to='+encodeURIComponent(state.to); }
-  function loadAll(){ loadReport(); loadInbox(); loadReferrals(); if(tab==='atribuicao') loadAttribution(); }
+  function loadAll(){ loadReport(); loadInbox(); loadReferrals(); if(tab==='atribuicao') loadAttribution(); if(tab==='funil') loadFunnel(); }
 
   function loadReport(){
     barStart(); $('app').classList.add('is-loading');
@@ -1108,6 +1211,8 @@
       tab=t; document.querySelectorAll('.tab-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
       $('tab-resultados').classList.toggle('hidden', tab!=='resultados'); $('tab-whatsapp').classList.toggle('hidden', tab!=='whatsapp');
       $('tab-atribuicao').classList.toggle('hidden', tab!=='atribuicao');
+      $('tab-funil').classList.toggle('hidden', tab!=='funil');
+      if(tab==='funil'){ loadFunnel(); loadAutoMsgs(); }
       if(tab==='resultados' && lastReport) renderChart(lastReport.daily||[]);
       if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); } }); });
 
@@ -1157,7 +1262,154 @@
     $('ref-by-phone').addEventListener('keydown', function(e){ if(e.key==='Enter') submitReferralName(); });
     $('ref-ok').addEventListener('click', submitReferralName);
 
+    bindFunnel();
     var maxDay=todayYmd(); $('date-from').max=maxDay; $('date-to').max=maxDay;
+  }
+
+  // ======================= FUNIL META (KROB v0.3) ======================= //
+  // Five stages per CTWA click: Lead novo -> Respondeu -> Orcou -> Agendou, or
+  // Desqualificado. Lead/Respondeu are automatic (webhook); the rest are marked
+  // here and sent to the Meta messaging dataset. API: /api/ctwa/*.
+  var FZ_STAGE = {
+    novo:['Lead novo','pill-meta'], respondeu:['Respondeu','pill-green'], orcou:['Orçou','pill-amber'],
+    agendou:['Agendou','pill-green'], desqualificado:['Desqualificado','pill-muted']
+  };
+  var FZ_REASON = { nao_respondeu:'não respondeu', fora_do_perfil:'fora do perfil', sem_orcamento:'sem orçamento', outro:'outro' };
+  var FZ_SEND = { sent:'enviado', failed:'falhou', sending:'enviando', skipped_no_creds:'sem credencial',
+    expired:'fora da janela de 7 dias', pending:'pendente' };
+  var fzStage = '', fzRows = [], fzAction = null;
+
+  function fzRange(){ return { since:new Date(state.from+'T00:00:00').getTime(), until:new Date(shiftYmd(state.to,1)+'T00:00:00').getTime() }; }
+  function fzApi(path, body){
+    var url='/api/ctwa/'+path+(path.indexOf('?')<0?'?':'&')+'key='+encodeURIComponent(KEY);
+    var opt = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {};
+    return fetch(url, opt).then(function(r){
+      if(r.status===401){ openGate('Chave inválida.'); throw 'auth'; }
+      return r.json().then(function(d){ d._status=r.status; return d; });
+    });
+  }
+  function fzDate(ms){ if(!ms) return '—'; var d=new Date(ms); return pad(d.getDate())+'/'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+  function fzMark(label, st){
+    if(!st) return '';
+    var ok = st==='sent', icon = ok?'✓':(st==='failed'?'✗':(st==='sending'?'…':'–'));
+    var color = ok?'var(--green)':(st==='failed'?'var(--red)':'var(--muted)');
+    return '<span title="'+esc(label+': '+(FZ_SEND[st]||st))+'" style="color:'+color+';white-space:nowrap">'+esc(label)+' '+icon+'</span>';
+  }
+
+  function loadFunnel(){
+    if(!tabEnabled('funil')) return;
+    var r=fzRange();
+    fzApi('funnel?since='+r.since+'&until='+r.until+'&limit=300'+(fzStage?'&stage='+fzStage:'')).then(function(d){
+      if(d.error){ $('rows-funil').innerHTML='<tr><td colspan="6" class="text-center" style="color:var(--red)">'+esc(d.error)+'</td></tr>'; return; }
+      Object.keys(FZ_STAGE).forEach(function(k){ $('fz-n-'+k).textContent=int(d.stages[k]||0); });
+      fzRows=d.rows||[]; paintFunnel();
+    }).catch(function(e){ if(e==='auth') return; });
+  }
+
+  function paintFunnel(){
+    var tb=$('rows-funil');
+    if(!fzRows.length){ tb.innerHTML='<tr><td colspan="6" class="text-center" style="color:var(--muted)">Nenhum contato vindo do anúncio neste período.</td></tr>'; return; }
+    tb.innerHTML = fzRows.map(function(c){
+      var st=FZ_STAGE[c.stage]||[c.stage,'pill-muted'];
+      var dq=!!c.disqualified_at, bought=!!c.purchase_status;
+      var open = c.wa_conversation_id ? '<button class="btn-sm" data-fz-open="'+c.wa_conversation_id+'">Conversa</button> ' : '';
+      var acts = [];
+      if(!dq && (!c.replied_status || c.replied_status==='failed')) acts.push('<button class="btn-sm" data-fz="replied" data-id="'+c.id+'">Respondeu</button>');
+      if(!dq && (!c.qualified_lead_status || c.qualified_lead_status==='failed')) acts.push('<button class="btn-sm" data-fz="orcou" data-id="'+c.id+'">Orçou</button>');
+      if(!bought || c.purchase_status==='failed') acts.push('<button class="btn-sm" data-fz="agendou" data-id="'+c.id+'">Agendou</button>');
+      if(!dq && !bought) acts.push('<button class="btn-sm" data-fz="desq" data-id="'+c.id+'" style="color:var(--red)">Desqualificar</button>');
+      if(dq) acts.push('<button class="btn-sm" data-fz="undo" data-id="'+c.id+'">Desfazer</button>');
+      var ad = c.ad_name || c.ad_title || (c.ad_id ? 'anúncio '+c.ad_id : '—');
+      var sub = c.campaign_name ? '<div class="text-xs" style="color:var(--muted)">'+esc(c.campaign_name)+'</div>' : '';
+      var stageSub = dq ? '<div class="text-xs" style="color:var(--muted)">'+esc(FZ_REASON[c.disqualified_reason]||c.disqualified_reason||'')+'</div>'
+        : (c.replied_source==='auto' && c.stage==='respondeu' ? '<div class="text-xs" style="color:var(--muted)">automático</div>' : '');
+      var meta = [fzMark('Lead',c.lead_status), fzMark('Resp.',c.replied_status), fzMark('Orç.',c.qualified_lead_status),
+        fzMark('Agend.',c.purchase_status), fzMark('Desq.',c.disqualified_status)].filter(Boolean).join(' · ');
+      return '<tr><td><div class="font-semibold">'+esc(c.sender_name||'—')+'</div><div class="text-xs mono" style="color:var(--muted)">'+esc(c.sender_pn||'')+'</div></td>'+
+        '<td><div>'+esc(ad)+'</div>'+sub+'</td>'+
+        '<td class="mono">'+fzDate(c.first_seen_at)+'</td>'+
+        '<td><span class="pill '+st[1]+'">'+esc(st[0])+'</span>'+stageSub+'</td>'+
+        '<td class="text-xs">'+(meta||'—')+'</td>'+
+        '<td style="white-space:nowrap">'+open+acts.join(' ')+'</td></tr>';
+    }).join('');
+    tb.querySelectorAll('button[data-fz]').forEach(function(b){ b.addEventListener('click', function(){ fzOpen(b.getAttribute('data-fz'), parseInt(b.getAttribute('data-id'),10)); }); });
+    tb.querySelectorAll('button[data-fz-open]').forEach(function(b){ b.addEventListener('click', function(){ openCrm(parseInt(b.getAttribute('data-fz-open'),10)); }); });
+  }
+
+  function fzOpen(act, id){
+    var c=fzRows.filter(function(x){ return x.id===id; })[0]; if(!c) return;
+    var who=c.sender_name||c.sender_pn||'este contato';
+    var T={
+      replied:['Marcar "Respondeu"','Envia ViewContent à Meta para '+who+'. Normalmente isso acontece sozinho quando a pessoa responde depois da clínica.'],
+      orcou:['Marcar "Orçou"','Envia QualifiedLead à Meta para '+who+' e marca a conversa como qualificada na lista do WhatsApp.'],
+      agendou:['Marcar "Agendou"','Envia Purchase à Meta com o valor da consulta para '+who+' e marca a venda na lista do WhatsApp.'],
+      desq:['Desqualificar','Envia OrderCanceled à Meta (só para público de exclusão; o motivo fica aqui) e marca '+who+' como perdido na lista.'],
+      undo:['Desfazer desqualificação','Tira a marca de '+who+'. O evento que já foi para a Meta continua lá.']
+    }[act];
+    fzAction={act:act,id:id};
+    $('fz-m-title').textContent=T[0]; $('fz-m-text').textContent=T[1];
+    $('fz-m-value-wrap').classList.toggle('hidden', act!=='agendou');
+    $('fz-m-reason-wrap').classList.toggle('hidden', act!=='desq');
+    $('fz-m-err').classList.add('hidden'); $('fz-m-ok').disabled=false;
+    $('fz-modal').classList.remove('hidden');
+  }
+  function fzClose(){ $('fz-modal').classList.add('hidden'); fzAction=null; }
+  function fzErr(m){ var e=$('fz-m-err'); e.textContent=m; e.classList.remove('hidden'); }
+  function fzSubmit(){
+    if(!fzAction) return; var a=fzAction, p;
+    if(a.act==='replied') p=fzApi('fire-replied',{conversion_id:a.id});
+    else if(a.act==='orcou') p=fzApi('fire-qualified-lead',{conversion_id:a.id});
+    else if(a.act==='agendou'){ var v=Number($('fz-m-value').value); if(!(v>0)){ fzErr('Informe o valor.'); return; } p=fzApi('fire-purchase',{conversion_id:a.id,value:v,force:true}); }
+    else if(a.act==='desq') p=fzApi('disqualify',{conversion_id:a.id,reason:$('fz-m-reason').value});
+    else if(a.act==='undo') p=fzApi('disqualify',{conversion_id:a.id,undo:true});
+    $('fz-m-ok').disabled=true;
+    p.then(function(d){
+      if(d._status>=400 && d._status!==502){ fzErr(d.error||('Erro '+d._status)); $('fz-m-ok').disabled=false; return; }
+      fzClose(); loadFunnel(); loadInbox();
+      if(d._status===502) showNotice('Marcado aqui, mas a Meta não confirmou o envio. Veja a coluna "Enviado à Meta".');
+    }).catch(function(e){ if(e==='auth') return; fzErr('Falha de conexão.'); $('fz-m-ok').disabled=false; });
+  }
+
+  function fzExport(){
+    var r=fzRange(), msg=$('fz-export-msg'); msg.textContent='Gerando…';
+    fetch('/api/ctwa/export?key='+encodeURIComponent(KEY)+'&since='+r.since+'&until='+r.until+(fzStage?'&stage='+fzStage:''))
+      .then(function(res){ if(!res.ok) throw new Error('Erro '+res.status); return res.blob(); })
+      .then(function(b){ var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+        a.download='publico-'+(fzStage||'todos')+'-'+state.from+'_'+state.to+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); },2000); msg.textContent=''; })
+      .catch(function(e){ msg.textContent='Falhou: '+(e.message||e); });
+  }
+
+  function loadAutoMsgs(){
+    fzApi('rules').then(function(d){
+      var list=(d.rules||[]).filter(function(r){ return r.event_type==='auto_message'; }), el=$('fz-auto-list');
+      if(!list.length){ el.innerHTML='<div style="color:var(--google)">Nenhuma cadastrada ainda. Sem isso, a saudação automática pode contar como resposta da clínica.</div>'; return; }
+      el.innerHTML=list.map(function(r){
+        return '<div class="flex items-center justify-between gap-3 py-1.5" style="border-bottom:1px solid var(--line)"><span>&ldquo;'+esc(r.pattern)+'&rdquo;'+
+          ' <span class="text-xs" style="color:var(--muted)">· reconhecida '+int(r.fired_count||0)+'x</span></span>'+
+          '<button class="btn-sm" data-auto-del="'+r.id+'">Remover</button></div>';
+      }).join('');
+      el.querySelectorAll('button[data-auto-del]').forEach(function(b){ b.addEventListener('click', function(){
+        fetch('/api/ctwa/rules/'+b.getAttribute('data-auto-del')+'?key='+encodeURIComponent(KEY),{method:'DELETE'}).then(loadAutoMsgs); }); });
+    }).catch(function(){});
+  }
+  function addAutoMsg(){
+    var t=$('fz-auto-text').value.trim(); if(t.length<2) return;
+    fzApi('rules',{event_type:'auto_message',pattern:t,notes:'dashboard'}).then(function(d){
+      if(!d.ok){ showNotice('Não salvou: '+(d.error||d._status)); return; } $('fz-auto-text').value=''; loadAutoMsgs(); });
+  }
+
+  function bindFunnel(){
+    document.querySelectorAll('#fz-filter .seg-btn').forEach(function(b){ b.addEventListener('click', function(){
+      fzStage=b.getAttribute('data-stage'); document.querySelectorAll('#fz-filter .seg-btn').forEach(function(x){ x.classList.toggle('active', x===b); }); loadFunnel(); }); });
+    document.querySelectorAll('.fz-kpi').forEach(function(k){ k.style.cursor='pointer'; k.addEventListener('click', function(){
+      var b=document.querySelector('#fz-filter .seg-btn[data-stage="'+k.getAttribute('data-stage')+'"]'); if(b) b.click(); }); });
+    $('fz-m-cancel').addEventListener('click', fzClose);
+    $('fz-modal').addEventListener('click', function(e){ if(e.target===$('fz-modal')) fzClose(); });
+    $('fz-m-ok').addEventListener('click', fzSubmit);
+    $('fz-export').addEventListener('click', fzExport);
+    $('fz-auto-add').addEventListener('click', addAutoMsg);
+    $('fz-auto-text').addEventListener('keydown', function(e){ if(e.key==='Enter') addAutoMsg(); });
   }
 
   // -------- auto-refresh (tempo real no WhatsApp/Comercial) --------
@@ -1167,6 +1419,7 @@
     if(document.hidden) return;                       // pausa em aba oculta (economiza)
     if($('app').classList.contains('hidden')) return; // não roda no gate
     if(tab==='whatsapp') loadInbox();                 // lista de leads + bolinhas
+    if(tab==='funil') loadFunnel();                   // funil Meta (etapas)
     if(crmId!=null) loadCrm();                         // thread aberto → novas mensagens
   }
   function startPolling(){ if(pollTimer) clearInterval(pollTimer); pollTimer=setInterval(poll, POLL_MS); }

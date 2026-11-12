@@ -1,6 +1,7 @@
 // GET  /api/ctwa/rules?key=… — every auto-fire rule (newest first).
-// POST /api/ctwa/rules?key=… — create one. Body: { event_type: 'qualified_lead'|'purchase',
-//   pattern, direction?: 'in'|'out'|'any', case_sensitive?, value?, currency?, notes?, enabled? }
+// POST /api/ctwa/rules?key=… — create one. Body: { event_type: 'replied'|'qualified_lead'|'purchase'|
+//   'disqualified'|'auto_message', pattern, direction?: 'in'|'out'|'any', case_sensitive?, value?,
+//   currency?, reason? (disqualified), notes?, enabled? }
 
 import { guard, json, readJson } from '../../lib/ctwa-http.js';
 import { validateRuleFields } from '../../lib/ctwa-rules.js';
@@ -22,10 +23,10 @@ export async function onRequestPost({ request, env }) {
   if (error) return json({ ok: false, error }, 400);
 
   const res = await env.DB.prepare(`
-    INSERT INTO wa_auto_rules (enabled, event_type, match_type, pattern, case_sensitive, direction, value, currency, notes, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+    INSERT INTO wa_auto_rules (enabled, event_type, match_type, pattern, case_sensitive, direction, value, currency, reason, notes, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
     rule.enabled, rule.event_type, rule.match_type, rule.pattern, rule.case_sensitive,
-    rule.direction, rule.value, rule.currency, rule.notes, Date.now(),
+    rule.direction, rule.value, rule.currency, rule.reason, rule.notes, Date.now(),
   ).run();
   const row = await env.DB.prepare('SELECT * FROM wa_auto_rules WHERE id = ?').bind(res.meta.last_row_id).first();
   return json({ ok: true, rule: row }, 201);

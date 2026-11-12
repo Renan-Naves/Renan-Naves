@@ -3,7 +3,7 @@
 // conversion, and what would actually fire after the per-contact guards.
 
 import { guard, json, readJson } from '../../../lib/ctwa-http.js';
-import { loadEnabledRules, matchRules, findConversionForPhone } from '../../../lib/ctwa-rules.js';
+import { loadEnabledRules, matchRules, findConversionForPhone, ruleBlockedBy } from '../../../lib/ctwa-rules.js';
 import { normalizePhone } from '../../../lib/ctwa-capi.js';
 
 export async function onRequestPost({ request, env }) {
@@ -24,11 +24,8 @@ export async function onRequestPost({ request, env }) {
   const firstPerType = {};
   for (const r of matches) firstPerType[r.event_type] ??= r;
   const wouldFire = Object.values(firstPerType).map((rule) => {
-    let blocked = null;
-    if (conv) {
-      const s = rule.event_type === 'qualified_lead' ? conv.qualified_lead_status : conv.purchase_status;
-      if (s === 'sent' || s === 'sending') blocked = `already_${s}`;
-    }
+    const blocked = rule.event_type === 'auto_message' ? 'auto_message'
+      : (conv ? ruleBlockedBy(rule.event_type, conv) : null);
     return { rule_id: rule.id, event_type: rule.event_type, value: rule.value, currency: rule.currency, blocked_by_guard: blocked };
   });
 

@@ -36,6 +36,7 @@ import { originFromText } from '../../origins.js';
 import { ensureCtwaSchema } from '../../lib/ctwa-schema.js';
 import { upsertConversion, fireLead, enrichAdIfStale, normalizePhone } from '../../lib/ctwa-capi.js';
 import { evaluateAutoRules } from '../../lib/ctwa-rules.js';
+import { detectReply } from '../../lib/ctwa-funnel.js';
 import { fireGoogleMessageLead } from '../../lib/google-message-lead.js';
 
 export async function onRequestPost(context) {
@@ -70,6 +71,15 @@ export async function onRequestPost(context) {
     context.waitUntil(evaluateAutoRules(env, {
       text: msg.text, contactPhone: normalizePhone(msg.phone, env.DEFAULT_COUNTRY_CODE),
       fromMe: msg.fromMe ? 1 : 0, eventTime: msgAt,
+    }).catch(() => {}));
+  }
+
+  // KROB v0.3 "Respondeu": an inbound 1:1 message (any type, audio too) after a
+  // human message from the clinic fires ViewContent for the contact's CTWA click.
+  if (!msg.fromMe && msg.phone && eventId && !/@g\.us$/i.test(msg.chatId)) {
+    context.waitUntil(detectReply(env, {
+      chatId: msg.chatId, contactPhone: normalizePhone(msg.phone, env.DEFAULT_COUNTRY_CODE),
+      eventRowId: eventId, eventTime: msgAt,
     }).catch(() => {}));
   }
 
