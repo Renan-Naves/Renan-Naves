@@ -454,6 +454,24 @@
       </section>
 
       <section class="card p-5 fade-in mt-6">
+        <div class="font-semibold head mb-1">O que o Gerenciador da Meta conta</div>
+        <div class="text-xs mb-3" style="color:var(--dim)">
+          "Conversas por mensagem iniciadas" dos conjuntos de WhatsApp no período, separadas pelo jeito que a Meta dá o crédito ao anúncio.
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="card kpi"><div class="kpi-label">Total no Gerenciador</div><div class="kpi-value mono" id="ma-total">—</div>
+            <div class="kpi-sub">clique em 7 dias + visualização</div></div>
+          <div class="card kpi"><div class="kpi-label">Clique, mesmo dia</div><div class="kpi-value mono" id="ma-c1" style="color:var(--meta)">—</div>
+            <div class="kpi-sub">Tocou no botão do anúncio e escreveu. Chega aqui com a marca do anúncio</div></div>
+          <div class="card kpi"><div class="kpi-label">Clique, 2 a 7 dias depois</div><div class="kpi-value mono" id="ma-c7" style="color:var(--google)">—</div>
+            <div class="kpi-sub">Clicou e escreveu depois, em geral pela bio, site ou busca. Chega sem marca</div></div>
+          <div class="card kpi"><div class="kpi-label">Só viu o anúncio</div><div class="kpi-value mono" id="ma-v1" style="color:var(--muted)">—</div>
+            <div class="kpi-sub">Não clicou; escreveu em até 1 dia por outro caminho. Chega sem marca</div></div>
+        </div>
+        <div class="text-xs mt-3" style="color:var(--dim)" id="ma-note">&nbsp;</div>
+      </section>
+
+      <section class="card p-5 fade-in mt-6">
         <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
           <span class="font-semibold head">Contatos vindos do anúncio</span>
           <div class="seg" id="fz-filter">
@@ -741,7 +759,7 @@
 
   // -------- fetch --------
   function qs(){ return 'key='+encodeURIComponent(KEY)+'&from='+encodeURIComponent(state.from)+'&to='+encodeURIComponent(state.to); }
-  function loadAll(){ loadReport(); loadInbox(); loadReferrals(); if(tab==='atribuicao') loadAttribution(); if(tab==='funil') loadFunnel(); }
+  function loadAll(){ loadReport(); loadInbox(); loadReferrals(); if(tab==='atribuicao') loadAttribution(); if(tab==='funil'){ loadFunnel(); loadMetaAttr(); } }
 
   function loadReport(){
     barStart(); $('app').classList.add('is-loading');
@@ -1212,7 +1230,7 @@
       $('tab-resultados').classList.toggle('hidden', tab!=='resultados'); $('tab-whatsapp').classList.toggle('hidden', tab!=='whatsapp');
       $('tab-atribuicao').classList.toggle('hidden', tab!=='atribuicao');
       $('tab-funil').classList.toggle('hidden', tab!=='funil');
-      if(tab==='funil'){ loadFunnel(); loadAutoMsgs(); }
+      if(tab==='funil'){ loadFunnel(); loadAutoMsgs(); loadMetaAttr(); }
       if(tab==='resultados' && lastReport) renderChart(lastReport.daily||[]);
       if(tab==='atribuicao'){ loadAttribution(); loadReferrals(); } }); });
 
@@ -1277,7 +1295,7 @@
   var FZ_REASON = { nao_respondeu:'não respondeu', fora_do_perfil:'fora do perfil', sem_orcamento:'sem orçamento', outro:'outro' };
   var FZ_SEND = { sent:'enviado', failed:'falhou', sending:'enviando', skipped_no_creds:'sem credencial',
     expired:'fora da janela de 7 dias', pending:'pendente' };
-  var fzStage = '', fzRows = [], fzAction = null;
+  var fzStage = '', fzRows = [], fzAction = null, fzTotal = 0;
 
   function fzRange(){ return { since:new Date(state.from+'T00:00:00').getTime(), until:new Date(shiftYmd(state.to,1)+'T00:00:00').getTime() }; }
   function fzApi(path, body){
@@ -1302,7 +1320,7 @@
     fzApi('funnel?since='+r.since+'&until='+r.until+'&limit=300'+(fzStage?'&stage='+fzStage:'')).then(function(d){
       if(d.error){ $('rows-funil').innerHTML='<tr><td colspan="6" class="text-center" style="color:var(--red)">'+esc(d.error)+'</td></tr>'; return; }
       Object.keys(FZ_STAGE).forEach(function(k){ $('fz-n-'+k).textContent=int(d.stages[k]||0); });
-      fzRows=d.rows||[]; paintFunnel();
+      fzRows=d.rows||[]; fzTotal=d.total||0; paintFunnel();
     }).catch(function(e){ if(e==='auth') return; });
   }
 
@@ -1397,6 +1415,18 @@
     var t=$('fz-auto-text').value.trim(); if(t.length<2) return;
     fzApi('rules',{event_type:'auto_message',pattern:t,notes:'dashboard'}).then(function(d){
       if(!d.ok){ showNotice('Não salvou: '+(d.error||d._status)); return; } $('fz-auto-text').value=''; loadAutoMsgs(); });
+  }
+
+  function loadMetaAttr(){
+    $('ma-note').textContent='Consultando a Meta…';
+    fzApi('meta-attribution?since='+state.from+'&until='+state.to).then(function(d){
+      if(!d.ok){ $('ma-note').textContent='Não foi possível ler a Meta: '+(d.error||''); return; }
+      var t=d.total; $('ma-total').textContent=int(t.total); $('ma-c1').textContent=int(t.click_1d);
+      $('ma-c7').textContent=int(Math.max(0,t.click_7d-t.click_1d)); $('ma-v1').textContent=int(t.view_1d);
+      var here=fzTotal;
+      $('ma-note').innerHTML='Só a coluna <strong>Clique, mesmo dia</strong> é conversa que veio direto do anúncio para o WhatsApp; é ela que o rastreador consegue ligar ao anúncio (aqui: '+int(here)+' no período). '+
+        'As outras a Meta credita ao anúncio, mas a pessoa chegou pela bio, pelo site ou pela busca do número: aparecem na aba WhatsApp com essa origem.';
+    }).catch(function(e){ if(e==='auth') return; $('ma-note').textContent='Falha ao consultar a Meta.'; });
   }
 
   function bindFunnel(){
