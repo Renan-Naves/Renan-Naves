@@ -403,6 +403,21 @@ async function resolveAttribution(env, msg) {
     };
   }
 
+  // 1b) Meta ad frame WITHOUT a click id: WhatsApp sometimes sends the ad's
+  // context (entryPointConversionSource 'ctwa_ad', the ad id in sourceID) but
+  // no ctwaClid (seen 2026-10-05, "Estudo 2002"). It IS a Meta ad lead; it just
+  // can't take a CAPI event (Meta needs the clid). Before this it fell through
+  // to 'unknown'.
+  if (ref && !ctwa && (ref.entry_point === 'ctwa_ad' || ref.source_id || ref.conversion_source === 'FB_Ads')) {
+    return {
+      ...base, platform: 'meta', linkMethod: 'ctwa-noclid',
+      utmSource: 'meta-ads',
+      utmMedium: ref.entry_point_app ? 'ctwa-' + ref.entry_point_app : 'ctwa',
+      utmCampaign: ref.title || ref.headline || null,
+      utmContent: ref.source_id || ref.ad_id || null,
+    };
+  }
+
   // 2) Google/LP token: current "#xxxxxxxx" or legacy "(ref: xxxxxxxx)"
   const m = /(?:ref:\s*|#)([0-9a-fA-F]{8})/.exec(msg.text || '');
   if (m && env.DB) {
